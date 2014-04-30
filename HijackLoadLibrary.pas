@@ -1,0 +1,498 @@
+unit HijackLoadLibrary;
+
+interface
+uses
+  Windows,
+  SysUtils,
+//  JclWin32,
+  PEHeaders,
+  ExportTree,
+  Classes;
+
+  function LoadFromStream(source : TMemoryStream): boolean;
+  function Unload : boolean;
+  function FindFunctionByName(FuncName : string) : Cardinal;
+
+  // DONE : remove from this section after debuging
+implementation
+var
+  Stream : TMemoryStream;
+
+  DosHeader : TImageDOSHeader;
+  NTHeader : TImageNTHeaders;
+  ImageBase : Pointer;
+  ImageBaseDelta : Integer;
+  Sections : TSections;
+  ImportArray: TImports;
+  ExportArray: TExports;
+  ExternalLibraryArray: TExternalLibrarys;
+  ExportTree: TExportTree;
+  MyDLLProc: TDLLEntryProc;
+
+{ Helper Function }
+
+function ConvertPointer(RVA: LONGWORD): POINTER;
+var
+  I : integer;
+begin
+  Result := nil;
+  for I := Low(Sections) to High(Sections) do begin
+    if (RVA < (Sections[I].RVA + Sections[I].Size)) and (RVA >= Sections[I].RVA) then begin
+      Result := POINTER(LONGWORD((RVA - LONGWORD(Sections[I].RVA)) + LONGWORD(Sections[I].Base)));
+      Exit;
+    end;
+  end;
+end;
+
+function ParseStringToNumber(Astring: string): LONGWORD;
+var
+  CharCounter: integer;
+begin
+  Result := 0;
+  for CharCounter := 0 to length(Astring) - 1 do
+  begin
+    if Astring[CharCounter] in ['0'..'9'] then
+    begin
+        Result := (Result * 10) + BYTE(BYTE(Astring[CharCounter]) - BYTE('0'));
+    end
+    else
+        Exit;
+  end;
+end;
+
+function FindExternalLibrary(LibraryName: string): integer;
+var
+  I : integer;
+begin
+  Result := -1;
+  for I := 0 to length(ExternalLibraryarray) - 1 do begin
+    if ExternalLibraryarray[I].LibraryName = LibraryName then begin
+      Result := I;
+      Exit;
+    end;
+  end;
+end;
+
+function GetExternalLibraryHandle(LibraryName: string): HINST;
+var
+  I : integer;
+begin
+  Result := 0;
+  for I := 0 to length(ExternalLibraryarray) - 1 do begin
+    if ExternalLibraryarray[I].LibraryName = LibraryName then begin
+      Result := ExternalLibraryarray[I].LibraryHandle;
+      Exit;
+    end;
+  end;
+end;
+
+function LoadExternalLibrary(LibraryName: string): integer;
+begin
+  Result := FindExternalLibrary(LibraryName);
+  if Result < 0 then
+  begin
+    Result := length(ExternalLibraryarray);
+    SETlength(ExternalLibraryarray, length(ExternalLibraryarray) + 1);
+    ExternalLibraryarray[Result].LibraryName := LibraryName;
+    ExternalLibraryarray[Result].LibraryHandle := LoadLibrary(PCHAR(LibraryName));
+  end;
+end;
+
+{ Main function to loading module from stream }
+
+function ReadImageHeaders: boolean;
+begin
+   Result := FALSE;
+
+   if Assigned(Stream) then
+   begin
+     stream.Seek(0, soFromBeginning);
+     FILLCHAR(NTHeader, SIZEof(TImageNTHeaders), #0);
+     if Stream.Read(DosHeader, SIZEof(TImageDOSHeader)) <> SIZEof(TImageDOSHeader) then Exit;
+     if DOSHeader.Signature <> IMAGE_DOS_SIGNATURE then Exit;
+     if Stream.Seek(DOSHeader.LFAoffset, sofrombeginning) <> LONGINT(DOSHeader.LFAoffset) then Exit;
+     if Stream.Read(NTHeader.Signature, SIZEof(LONGWORD)) <> SIZEof(LONGWORD) then Exit;
+     if NTHeader.Signature <> IMAGE_NT_SIGNATURE then Exit;
+     if Stream.Read(NTHeader.FileHeader, SIZEof(TImageFileHeader)) <> SIZEof(TImageFileHeader) then Exit;
+     if NTHeader.FileHeader.Machine <> IMAGE_FILE_MACHINE_I386 then Exit;
+     if Stream.Read(NTHeader.OptionalHeader, NTHeader.FileHeader.SizeofOptionalHeader) <> NTHeader.FileHeader.SizeofOptionalHeader then Exit;
+     Result := TRUE;
+   end;
+
+end;
+
+
+function LoadInMemory(source : TMemoryStream) : boolean;
+begin
+  Result := False;
+  Stream := TMemoryStream.Create;
+  try
+    Stream.CopyFrom(source, source.Size);
+    Result := True;
+  except
+    Stream.Free;
+  end;
+end;
+
+procedure UnloadFromMemory;
+begin
+  if Assigned(Stream) then
+    Stream.Free;
+end;
+
+
+function InitializeImage: boolean;
+var
+  SectionBase: POINTER;
+  OldPosition: integer;
+  OldProtect: LONGWORD;
+begin
+  Result := FALSE;
+  if NTHeader.FileHeader.NumberOfSections > 0  then
+  begin
+    ImageBase := VirtualAlloc(nil, NTHeader.OptionalHeader.SizeOfImage, MEM_RESERVE, PAGE_NOACCESS);
+    ImageBaseDelta := LONGWORD(ImageBase) - NTHeader.OptionalHeader.ImageBase;
+    SectionBase := VirtualAlloc(ImageBase, NTHeader.OptionalHeader.SizeofHeaders, MEM_COMMIT, PAGE_READWRITE);
+    OldPosition := Stream.Position;
+    Stream.Seek(0, sofrombeginning);
+    Stream.Read(SectionBase^, NTHeader.OptionalHeader.SizeofHeaders);
+    VirtualProtect(SectionBase, NTHeader.OptionalHeader.SizeofHeaders, PAGE_READONLY, OldProtect);
+    Stream.Seek(OldPosition, sofrombeginning);
+    Result := TRUE;
+  end;
+end;
+
+
+function ReadSections: boolean;
+var
+  I: integer;
+  Section: TImageSectionHeader;
+  SectionHeaders: PImageSectionHeaders;
+begin
+  Result := FALSE;
+  if NTHeader.FileHeader.NumberOfSections > 0 then
+  begin
+    GETMEM(SectionHeaders, NTHeader.FileHeader.NumberOfSections * SIZEof(TImageSectionHeader));
+    if Stream.Read(SectionHeaders^, (NTHeader.FileHeader.NumberOfSections * SIZEof(TImageSectionHeader))) <> (NTHeader.FileHeader.NumberofSections * SIZEof(TImageSectionHeader)) then Exit;
+    SetLength(Sections, NTHeader.FileHeader.NumberofSections);
+    for I := 0 to NTHeader.FileHeader.NumberofSections - 1 do
+    begin
+      Section := SectionHeaders^[I];
+      Sections[I].RVA := Section.VirtualAddress;
+      Sections[I].Size := Section.SizeofRawData;
+      if Sections[I].Size < Section.Misc.VirtualSize then
+      begin
+        Sections[I].Size := Section.Misc.VirtualSize;
+      end;
+      Sections[I].Characteristics := Section.Characteristics;
+      Sections[I].Base := VirtualAlloc(POINTER(Sections[I].RVA + Cardinal(ImageBase)), Sections[I].Size, MEM_COMMIT, PAGE_READwrite);
+      FILLCHAR(Sections[I].Base^, Sections[I].Size, #0);
+      if Section.PointertoRawData <> 0 then
+      begin
+        Stream.Seek(Section.PointertoRawData, sofrombeginning);
+        if Stream.Read(Sections[I].Base^, Section.SizeofRawData) <> LONGINT(Section.SizeofRawData) then Exit;
+      end;
+    end;
+    FREEMEM(SectionHeaders);
+    Result := TRUE;
+  end;
+end;
+
+function ProcessRelocations: boolean;
+var
+  Relocations: PCHAR;
+  Position: LONGWORD;
+  BaseRelocation: PImageBaseRelocation;
+  Base: POINTER;
+  NumberofRelocations: LONGWORD;
+  Relocation: PWordarray;
+  RelocationCounter: LONGINT;
+  RelocationPointer: POINTER;
+  RelocationType: LONGWORD;
+begin
+    if NTHeader.OptionalHeader.DataDirectory[IMAGE_DIRECtoRY_ENTRY_BASERELOC].VirtualAddress <> 0 then begin
+      Result := FALSE;
+      Relocations := ConvertPointer(NTHeader.OptionalHeader.DataDirectory[IMAGE_DIRECtoRY_ENTRY_BASERELOC].VirtualAddress);
+      Position := 0;
+      while ASSIGNED(Relocations) and (Position < NTHeader.OptionalHeader.DataDirectory[IMAGE_DIRECtoRY_ENTRY_BASERELOC].Size) do begin
+        BaseRelocation := PImageBaseRelocation(Relocations);
+        Base := ConvertPointer(BaseRelocation^.VirtualAddress);
+        if not ASSIGNED(Base) then Exit;
+        NumberofRelocations := (BaseRelocation^.SizeofBlock - SIZEof(TImageBaseRelocation)) div SIZEof(WORD);
+        Relocation := POINTER(LONGWORD(LONGWORD(BaseRelocation) + SIZEof(TImageBaseRelocation)));
+        for RelocationCounter := 0 to NumberofRelocations - 1 do begin
+          RelocationPointer := POINTER(LONGWORD(LONGWORD(Base) + (Relocation^[RelocationCounter] and $FFF)));
+          RelocationType := Relocation^[RelocationCounter] shr 12;
+          case RelocationType of
+            IMAGE_REL_BASED_ABSOLUTE: begin
+              end;
+            IMAGE_REL_BASED_HIGH: begin
+                PWORD(RelocationPointer)^ := (LONGWORD(((LONGWORD(PWORD(RelocationPointer)^ + LONGWORD(ImageBase) - NTHeader.OptionalHeader.ImageBase)))) shr 16) and $FFFF;
+              end;
+            IMAGE_REL_BASED_LOW: begin
+                PWORD(RelocationPointer)^ := LONGWORD(((LONGWORD(PWORD(RelocationPointer)^ + LONGWORD(ImageBase) - NTHeader.OptionalHeader.ImageBase)))) and $FFFF;
+              end;
+            IMAGE_REL_BASED_HIGHLOW: begin
+                PPOINTER(RelocationPointer)^ := POINTER((LONGWORD(LONGWORD(PPOINTER(RelocationPointer)^) + LONGWORD(ImageBase) - NTHeader.OptionalHeader.ImageBase)));
+              end;
+            IMAGE_REL_BASED_HIGHADJ: begin
+       // ???
+              end;
+            IMAGE_REL_BASED_MIPS_JMPADDR: begin
+       // Only for MIPS CPUs ;)
+              end;
+          end;
+        end;
+        Relocations := POINTER(LONGWORD(LONGWORD(Relocations) + BaseRelocation^.SizeofBlock));
+        INC(Position, BaseRelocation^.SizeofBlock);
+      end;
+    end;
+    Result := TRUE;
+end;
+
+function ProcessImports : boolean;
+var
+    ImportDescriptor: PImageImportDescriptor;
+    ThunkData: PLONGWORD;
+    Name: PCHAR;
+    DLLImport: PDLLImport;
+    DLLfunctionImport: PDLLfunctionImport;
+    functionPointer: POINTER;
+begin
+    if NTHeader.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress <> 0 then begin
+      ImportDescriptor := ConvertPointer(NTHeader.OptionalHeader.DataDirectory[IMAGE_DIRECtoRY_ENTRY_IMPORT].VirtualAddress);
+      if ASSIGNED(ImportDescriptor) then begin
+        SETlength(ImportArray, 0);
+        while ImportDescriptor^.Name <> 0 do begin
+          Name := ConvertPointer(ImportDescriptor^.Name);
+          SETlength(Importarray, length(Importarray) + 1);
+          LoadExternalLibrary(Name);
+          DLLImport := @Importarray[length(Importarray) - 1];
+          DLLImport^.LibraryName := Name;
+          DLLImport^.LibraryHandle := GetExternalLibraryHandle(Name);
+          DLLImport^.Entries := nil;
+          if ImportDescriptor^.TimeDateStamp = 0 then begin
+            ThunkData := ConvertPointer(ImportDescriptor^.FirstThunk);
+          end else begin
+            ThunkData := ConvertPointer(ImportDescriptor^.OriginalFirstThunk);
+          end;
+          while ThunkData^ <> 0 do begin
+            SETlength(DLLImport^.Entries, length(DLLImport^.Entries) + 1);
+            DLLfunctionImport := @DLLImport^.Entries[length(DLLImport^.Entries) - 1];
+            if (ThunkData^ and IMAGE_ORDINAL_FLAG32) <> 0 then begin
+              DLLfunctionImport^.NameOrID := niID;
+              DLLfunctionImport^.ID := ThunkData^ and IMAGE_ORDINAL_MASK32;
+              DLLfunctionImport^.Name := '';
+              functionPointer := GetProcAddress(DLLImport^.LibraryHandle, PCHAR(ThunkData^ and IMAGE_ORDINAL_MASK32));
+            end else begin
+              Name := ConvertPointer(LONGWORD(ThunkData^) + IMPORTED_NAME_ofFSET);
+              DLLfunctionImport^.NameOrID := niName;
+              DLLfunctionImport^.ID := 0;
+              DLLfunctionImport^.Name := Name;
+              functionPointer := GetProcAddress(DLLImport^.LibraryHandle, Name);
+            end;
+            PPOINTER(Thunkdata)^ := functionPointer;
+            INC(ThunkData);
+          end;
+          INC(ImportDescriptor);
+        end;
+      end;
+    end;
+    Result := TRUE;
+end;
+
+function ProtectSections: boolean;
+var
+   I: integer;
+   Characteristics: LONGWORD;
+   Flags: LONGWORD;
+   OldProtect: LONGWORD;
+begin
+    Result := FALSE;
+    if NTHeader.FileHeader.NumberofSections > 0 then begin
+      for I := 0 to NTHeader.FileHeader.NumberofSections - 1 do begin
+        Characteristics := Sections[I].Characteristics;
+        Flags := 0;
+        if (Characteristics and IMAGE_SCN_MEM_EXECUTE) <> 0 then begin
+          if (Characteristics and IMAGE_SCN_MEM_READ) <> 0 then begin
+            if (Characteristics and IMAGE_SCN_MEM_write) <> 0 then begin
+              Flags := Flags or PAGE_EXECUTE_READwrite;
+            end else begin
+              Flags := Flags or PAGE_EXECUTE_READ;
+            end;
+          end else if (Characteristics and IMAGE_SCN_MEM_write) <> 0 then begin
+            Flags := Flags or PAGE_EXECUTE_writeCOPY;
+          end else begin
+            Flags := Flags or PAGE_EXECUTE;
+          end;
+        end else if (Characteristics and IMAGE_SCN_MEM_READ) <> 0 then begin
+          if (Characteristics and IMAGE_SCN_MEM_write) <> 0 then begin
+            Flags := Flags or PAGE_READwrite;
+          end else begin
+            Flags := Flags or PAGE_REAdoNLY;
+          end;
+        end else if (Characteristics and IMAGE_SCN_MEM_write) <> 0 then begin
+          Flags := Flags or PAGE_writeCOPY;
+        end else begin
+          Flags := Flags or PAGE_NOACCESS;
+        end;
+        if (Characteristics and IMAGE_SCN_MEM_NOT_CACHED) <> 0 then begin
+          Flags := Flags or PAGE_NOCACHE;
+        end;
+        VirtualProtect(Sections[I].Base, Sections[I].Size, Flags, OldProtect);
+      end;
+      Result := TRUE;
+    end;
+end;
+
+function InitializeLibrary: boolean;
+begin
+  Result := FALSE;
+
+  @MyDLLProc := ConvertPointer(NTHeader.OptionalHeader.AddressOfEntryPoint);
+  if MyDLLProc(CARDINAL(ImageBase), DLL_PROCESS_ATTACH, nil) then
+      Result := TRUE;
+end;
+
+function ProcessExports: boolean;
+var
+  I: integer;
+  ExportDirectory: PImageExportDirectory;
+  ExportDirectorySize: LONGWORD;
+  functionNamePointer: POINTER;
+  functionName: PCHAR;
+  functionIndexPointer: POINTER;
+  functionIndex: LONGWORD;
+  functionPointer: POINTER;
+  forwarderCharPointer: PCHAR;
+  forwarderstring: string;
+  forwarderLibrary: string;
+  forwarderLibraryHandle: HINST;
+begin
+  if NTHeader.OptionalHeader.DataDirectory[IMAGE_DIRECtoRY_ENTRY_EXPORT].VirtualAddress <> 0 then
+  begin
+    ExportTree := TExportTree.Create;
+    ExportDirectory := ConvertPointer(NTHeader.OptionalHeader.DataDirectory[IMAGE_DIRECtoRY_ENTRY_EXPORT].VirtualAddress);
+    if ASSIGNED(ExportDirectory) then
+    begin
+       ExportDirectorySize := NTHeader.OptionalHeader.DataDirectory[IMAGE_DIRECtoRY_ENTRY_EXPORT].Size;
+       SETlength(Exportarray, ExportDirectory^.NumberofNames);
+       for I := 0 to ExportDirectory^.NumberofNames - 1 do
+       begin
+          functionNamePointer := ConvertPointer(LONGWORD(ExportDirectory^.AddressofNames));
+          functionNamePointer := ConvertPointer(PLongWordArray(functionNamePointer)^[I]);
+          functionName := functionNamePointer;
+          functionIndexPointer := ConvertPointer(LONGWORD(ExportDirectory^.AddressofNameOrdinals));
+          functionIndex := PWordarray(functionIndexPointer)^[I];
+          functionPointer := ConvertPointer(LONGWORD(ExportDirectory^.Addressoffunctions));
+          functionPointer := ConvertPointer(PLongWordarray(functionPointer)^[functionIndex]);
+          Exportarray[I].Name := functionName;
+          Exportarray[I].Index := functionIndex;
+          if (LONGWORD(ExportDirectory) < LONGWORD(functionPointer)) and (LONGWORD(functionPointer) < (LONGWORD(ExportDirectory) + ExportDirectorySize)) then
+          begin
+            forwarderCharPointer := functionPointer;
+            forwarderstring := forwarderCharPointer;
+            while forwarderCharPointer^ <> '.' do
+                  INC(forwarderCharPointer);
+
+            forwarderLibrary := COPY(forwarderstring, 1, POS('.', forwarderstring) - 1);
+            LoadExternalLibrary(forwarderLibrary);
+            forwarderLibraryHandle := GetExternalLibraryHandle(forwarderLibrary);
+
+            if forwarderCharPointer^ = '#' then
+            begin
+              INC(forwarderCharPointer);
+              forwarderstring := forwarderCharPointer;
+              forwarderCharPointer := ConvertPointer(ParsestringtoNumber(forwarderstring));
+              forwarderstring := forwarderCharPointer;
+            end
+            else
+            begin
+              forwarderstring := forwarderCharPointer;
+              Exportarray[I].functionPointer := GetProcAddress(forwarderLibraryHandle, PCHAR(forwarderstring));
+            end;
+          end
+          else
+          begin
+            Exportarray[I].functionPointer := functionPointer;
+          end;
+          ExportTree.Add(Exportarray[I].Name, Exportarray[I].functionPointer);
+        end
+      end;
+    end;
+    Result := TRUE;
+end;
+
+function LoadFromStream(source : TMemoryStream) : boolean;
+begin
+  Result := False;
+  
+  if LoadInMemory(source) then
+   if ReadImageHeaders then
+    if InitializeImage then
+     if ReadSections then
+      if ProcessRelocations then
+       if ProcessImports then
+        if ProtectSections then
+         if InitializeLibrary then
+          if ProcessExports then
+              Result := True;
+end;
+
+
+function Unload: boolean;
+var
+  I, J: integer;
+begin
+  Result := FALSE;
+
+  if not  Assigned(Stream) then exit;
+
+  Stream.Free;
+
+  if @DLLProc <> nil then begin
+    DLLProc(DLL_PROCESS_DETACH);
+  end;
+
+  for I := 0 to length(Sections) - 1 do begin
+    if ASSIGNED(Sections[I].Base) then begin
+      VirtualFree(Sections[I].Base, 0, MEM_RELEASE);
+    end;
+  end;
+
+  SETlength(Sections, 0);
+  for I := 0 to length(ExternalLibraryarray) - 1 do begin
+    ExternalLibraryarray[I].LibraryName := '';
+    FreeLibrary(ExternalLibraryarray[I].LibraryHandle);
+  end;
+  SETlength(ExternalLibraryarray, 0);
+  for I := 0 to length(Importarray) - 1 do begin
+    for J := 0 to length(Importarray[I].Entries) - 1 do begin
+      Importarray[I].Entries[J].Name := '';
+    end;
+    SETlength(Importarray[I].Entries, 0);
+  end;
+  SETlength(Importarray, 0);
+  for I := 0 to length(Exportarray) - 1 do Exportarray[I].Name := '';
+  SETlength(Exportarray, 0);
+  VirtualFree(ImageBase, 0, MEM_RELEASE);
+  if ASSIGNED(ExportTree) then begin
+    ExportTree.Destroy;
+    ExportTree := nil;
+  end;
+end;
+
+function FindFunctionByName(FuncName : string) : Cardinal;
+var
+  I: Integer;
+begin
+  result := 0;
+  for I := Low(ExportArray) to High(ExportArray) do
+    if ExportArray[I].Name = FuncName then
+    begin
+        Result := Cardinal(ExportArray[I].functionPointer);
+        exit;
+    end;
+end;
+
+end.
