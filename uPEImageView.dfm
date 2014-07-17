@@ -1,9 +1,9 @@
 object Form2: TForm2
   Left = 466
   Top = 227
-  Width = 565
-  Height = 495
-  Caption = 'PEImageView'
+  Caption = 'tbu'
+  ClientHeight = 468
+  ClientWidth = 1061
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -12,6 +12,7 @@ object Form2: TForm2
   Font.Style = []
   OldCreateOrder = False
   OnCreate = FormCreate
+  OnDestroy = FormDestroy
   PixelsPerInch = 96
   TextHeight = 13
   object Label1: TLabel
@@ -38,7 +39,7 @@ object Form2: TForm2
   end
   object Button1: TButton
     Left = 272
-    Top = 32
+    Top = 33
     Width = 75
     Height = 25
     Caption = 'Open'
@@ -65,7 +66,7 @@ object Form2: TForm2
   end
   object btnCheckSelfImports: TButton
     Left = 384
-    Top = 40
+    Top = 33
     Width = 113
     Height = 25
     Caption = 'HiJack MsgBox'
@@ -133,6 +134,24 @@ object Form2: TForm2
       'testdll or  testdllreload.'
       '')
     TabOrder = 10
+  end
+  object btnBPLLoad: TButton
+    Left = 592
+    Top = 33
+    Width = 113
+    Height = 25
+    Caption = 'btnBPLLoad'
+    TabOrder = 11
+    OnClick = btnBPLLoadClick
+  end
+  object btnTestMemLoadLib: TButton
+    Left = 592
+    Top = 64
+    Width = 129
+    Height = 25
+    Caption = 'btnTestMemLoadLib'
+    TabOrder = 12
+    OnClick = btnTestMemLoadLibClick
   end
   object OpenDialog1: TOpenDialog
     Left = 248

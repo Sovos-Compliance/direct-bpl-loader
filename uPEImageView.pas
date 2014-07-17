@@ -6,7 +6,8 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ComCtrls,
-  HJPEImage, ImageLoader;
+  HJPEImage, mlBaseLoader,
+  mlLibraryManager, mlTypes;
 
 type
   TForm2 = class(TForm)
@@ -24,6 +25,10 @@ type
     edtFuncAddr: TEdit;
     btnCall: TButton;
     mmo1: TMemo;
+    btnBPLLoad: TButton;
+    btnTestMemLoadLib: TButton;
+    procedure FormDestroy(Sender: TObject);
+    procedure btnBPLLoadClick(Sender: TObject);
     procedure btnCallClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure btnCheckSelfImportsClick(Sender: TObject);
@@ -31,6 +36,7 @@ type
     procedure btnLoadHJPEClick(Sender: TObject);
     procedure btnLoadSelfClick(Sender: TObject);
     procedure btnRoolbackClick(Sender: TObject);
+    procedure btnTestMemLoadLibClick(Sender: TObject);
     procedure Button1Click(Sender: TObject);
   private
     HJImage : THJPEImage;
@@ -39,14 +45,12 @@ type
     { Private declarations }
   public
     { Public declarations }
-
     property PEImage : THJPEImage read HJImage;
-
   end;
 
   function MyMessage(wnd : HWND; lpText, lpCaption : PAnsiChar; uType : Cardinal) : Integer; stdcall;
 
-  procedure Start(Sender : TObject); external 'testDll.Dll'; 
+  procedure Start(Sender : TObject); external 'TestDLLs\testDll.Dll';
 
 var
   Form2: TForm2;
@@ -95,12 +99,12 @@ begin
                                                          // or load module in memory late
      if not HJImage.LoadLibraryFromStream then Exit;
      // update ListBox
-     lstExports.Items.BeginUpdate;
-     lstExports.Items.Clear;
-     ExportList := HJImage.GetExportList;
-     for I := 0 to ExportList.Count - 1  do
-       lstExports.Items.Add(ExportList[I]);
-     lstExports.Items.EndUpdate;
+//     lstExports.Items.BeginUpdate;
+//     lstExports.Items.Clear;
+//     ExportList := HJImage.GetExportList;
+//     for I := 0 to ExportList.Count - 1  do
+//       lstExports.Items.Add(ExportList[I]);
+//     lstExports.Items.EndUpdate;
   end;
 end;
 
@@ -165,6 +169,23 @@ begin
      Result := OldMessage(wnd, lpText, 'Yahoo !!! Works!!!', uType);
 end;
 
+procedure TForm2.btnBPLLoadClick(Sender: TObject);
+var
+  MemStr: TMemoryStream;
+  TestClass: TPersistentClass;
+  Package: TLibHandle;
+begin
+  MemStr := TMemoryStream.Create;
+  MemStr.LoadFromFile('TestDLLs\TestBPL.bpl');
+  TestClass := nil;
+//  Package := LoadPackage('TestDLLs\TestBPL.bpl');
+  Package := LoadPackageMem(MemStr, 'TestBPL');
+  MemStr.Free;
+  TestClass := GetClass('TButtonReload');
+  if not Assigned(TestClass) then
+    raise Exception.Create('Class not loaded');
+end;
+
 procedure TForm2.btnCallClick(Sender: TObject);
 var
   MsgBox : TMsgBox;
@@ -190,8 +211,37 @@ begin
   MessageBox(0, 'Roll Back', 'Test', MB_OK);
 end;
 
+type
+  TTestDLLFunc = procedure(Sender: TObject); stdcall;
+
+procedure TForm2.FormDestroy(Sender: TObject);
+begin
+  HJImage.Free;
+end;
+
+procedure TForm2.btnTestMemLoadLibClick(Sender: TObject);
+var
+  MemStr: TMemoryStream;
+  Proc: TTestDLLFunc;
+  H: TLibHandle;
+  Res: HRSRC;
+  P: Pointer;
+begin
+  MemStr := TMemoryStream.Create;
+  MemStr.LoadFromFile('TestDLLs\TestDll.Dll');
+  H := LoadLibraryMem(MemStr);
+  MemStr.Free;
+//  Proc := (GetProcAddressMem(H, 'TestMessage'));
+//  if Assigned(Proc) then
+//    Proc(nil);
+  Res := FindResourceMem(H, 'TESTDATA', RT_RCDATA);
+  P := Pointer(LoadResourceMem(H, Res));
+  Res := SizeofResourceMem(H, Res);
+end;
+
 procedure TForm2.FormCreate(Sender: TObject);
 begin
+  ReportMemoryLeaksOnShutdown := true;
   HJImage := THJPEImage.Create(true);
 end;
 

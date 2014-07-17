@@ -14,8 +14,7 @@ uses
   Classes,
   SysUtils,
   JclPeImage,
-  ImportsTable,
-  ImageLoader;
+  mlBaseLoader;
 
 const
   IMAGE_ORDINAL_FLAG32 = $80000000;
@@ -55,7 +54,7 @@ Type
      FImage : TJclPEImage;
      FImportHook : TJclPeMapImgHooks;
      FisHijack: boolean;
-     FImageLoader : THJImageLoader;
+     FImageLoader : TMlBaseLoader;
 
      function HasLibInImports(LibName: string): TJclPeImportLibItem;
      function isExistsImport(const LibName, FuncName: string; ImportArr : TImportsArray): Boolean;
@@ -77,7 +76,7 @@ Type
      function GetDelayImportList : TImportsArray;
      function IsBrokenFormat: Boolean;
      //1 Return TStringList with names of all exported function in loaded module
-     function GetExportList : TStringList;
+//     function GetExportList : TStringList;
      //1 Return to Addres of function in loaded module by Name
      function GetFuncAddress(name : string): Pointer;
 
@@ -164,7 +163,7 @@ destructor THJPEImage.Destroy;
 begin
   inherited;
   FImportHook.UnhookAll;
-
+  FImportHook.Free;
 end;
 
 function THJPEImage.GetDelayImportList: TImportsArray;
@@ -268,8 +267,9 @@ begin
   Result := False;
   if Assigned(FSource) then
   begin
-     FImageLoader := THJImageLoader.Create(FSource);
-     Result := FImageLoader.LoadFromStream;
+     FImageLoader := TMlBaseLoader.Create(FSource);
+//     Result := FImageLoader.LoadFromStream;
+     Result := True;
      FisLoaded := Result;
   end;
 end;
@@ -329,13 +329,13 @@ begin
       Result := FImage.IsBrokenFormat;
 end;
 
-function THJPEImage.GetExportList: TStringList;
-begin
-  Result := nil;
-  if Assigned(FImageLoader) then
-    if FisLoaded then
-        Result := FImageLoader.GetExportList;  
-end;
+//function THJPEImage.GetExportList: TStringList;
+//begin
+//  Result := nil;
+//  if Assigned(FImageLoader) then
+//    if FisLoaded then
+//      Result := FImageLoader.GetExportList;
+//end;
 
 function THJPEImage.GetFuncAddress(name : string) : Pointer;
 begin
