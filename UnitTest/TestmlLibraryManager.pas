@@ -13,6 +13,8 @@ type
   TestLibraryManager = class(TTestCase)
   private
     fMemStream: TMemoryStream;
+    fEventCalled: Boolean;
+    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream);
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -30,19 +32,30 @@ type
     procedure TestFreeLibraryTwiceNamed;
     procedure TestGetModuleFileNameMem;
     procedure TestGetModuleHandleMem;
+
+    procedure TestLoadPackageMem;
+
+    procedure TestOnDependencyLoadEvent;
   end;
 
 implementation
 
 procedure TestLibraryManager.SetUp;
 begin
-  UnloadAllLibrariesMem;
+  UnloadAllLibrariesMem;  //VG: Reset the library loader and free the memory
   fMemStream := TMemoryStream.Create;
 end;
 
 procedure TestLibraryManager.TearDown;
 begin
+  UnloadAllLibrariesMem;  //VG: Reset the library loader and free the memory
   fMemStream.Free;
+end;
+
+procedure TestLibraryManager.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
+    aMemStream: TMemoryStream);
+begin
+  fEventCalled := true;
 end;
 
 procedure TestLibraryManager.TestLoadLibraryMemValid;
@@ -180,6 +193,25 @@ begin
   LibHandle := LoadLibraryMem(fMemStream, DLL_NAME);
   ReturnValue := GetModuleHandleMem(DLL_NAME);
   CheckEquals(ReturnValue, LibHandle);
+end;
+
+procedure TestLibraryManager.TestLoadPackageMem;
+var
+  TestClass: TPersistentClass;
+begin
+  fMemStream.LoadFromFile(BPL_PATH);
+  LoadPackageMem(fMemStream, 'TestBPL');
+  TestClass := GetClass('TButtonReload');
+  CheckNotNull(TObject(TestClass), 'The class could not be loaded from the BPL. Check if project is built with Runtime packages');
+end;
+
+procedure TestLibraryManager.TestOnDependencyLoadEvent;
+begin
+  MlOnDependencyLoad := TestEvent;
+  fEventCalled := false;
+  fMemStream.LoadFromFile(DLL_PATH);
+  LoadLibraryMem(fMemStream, DLL_NAME);
+  CheckTrue(fEventCalled, 'The OnDependencyLoad event was not called');
 end;
 
 initialization

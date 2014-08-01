@@ -10,7 +10,7 @@ unit mlTypes;
 interface
 
 uses
-  SysUtils, Windows;
+  SysUtils, Windows, Classes;
 
 type
   /// A helper type for the handles used by the emulated functions
@@ -25,7 +25,14 @@ type
   EMlProcedureError   = class(EMlError);
   EMlResourceError    = class(EMlError);
 
-  TMlLoadDependentLibraryEvent = procedure(const aLibName, aDependentLib: String; var aLoad: Boolean);
+  /// A Callback function that is called when a library being loaded needs to load a dependent library
+  /// The value set in aLoadAction defines how the dependent library should be loaded
+  ///   laDiscard - don't load the library
+  ///   laHardDrive - load the library with the standard LoadLibrary Windows API
+  ///   laMemStream - load the library from the stream passed in aMemStream (which has to be freed later)
+  TLoadAction = (laHardDrive, laMemStream, laDiscard);
+  TMlLoadDependentLibraryEvent = procedure(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
+      aMemStream: TMemoryStream) of object;
 
 implementation
 

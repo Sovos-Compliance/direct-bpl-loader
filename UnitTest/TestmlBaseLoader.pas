@@ -17,7 +17,9 @@ type
   private
     fMemStream: TMemoryStream;
     fMlBaseLoader: TMlBaseLoader;
+    fEventCalled: Boolean;
     procedure LoadHelper(aPath: String);
+    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream);
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -38,6 +40,7 @@ type
     procedure TestSizeOfResourceValidCompareToWinapi;
     procedure TestSizeOfResourceInvalidByZeroHandle;
     procedure TestSizeOfResourceInvalidByWrongHandle;
+    procedure TestOnDependencyLoadEvent;
   end;
 
 implementation
@@ -215,6 +218,19 @@ begin
   LoadHelper(DLL_PATH);
   ExpectedException := EMlResourceError;
   fMlBaseLoader.SizeOfResource(TEST_WRONG_RES_HANDLE);
+end;
+
+procedure TestTMlBaseLoader.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream);
+begin
+  fEventCalled := true;
+end;
+
+procedure TestTMlBaseLoader.TestOnDependencyLoadEvent;
+begin    
+  fMemStream.LoadFromFile(DLL_PATH);
+  fMlBaseLoader.OnDependencyLoad := TestEvent;
+  fMlBaseLoader.LoadFromStream(fMemStream);
+  CheckTrue(fEventCalled, 'The OnDependencyLoad event was not called');
 end;
 
 initialization

@@ -8,6 +8,8 @@
 *  The code handles the internal dependency of one package on another and      *
 *  loading of the dependencies                                                 *
 *                                                                              *
+*  References:                                                                 *
+*  http://stackoverflow.com/questions/7566954/why-code-in-any-unit-finalization-section-of-a-package-is-not-executed-at-start
 *******************************************************************************}
 
 unit mlBPLLoader;
@@ -160,7 +162,7 @@ var
         ((HashEntry.FullHash = HashCode) and (StrIComp(UnitName, HashEntry.UnitName) = 0)) then
         begin
           UnitPackage := ChangeFileExt(ExtractFileName(
-            GetModuleName(HMODULE(HashEntry.LibModule.Instance))), '');
+            GetModuleName(HMODULE(HashEntry.LibModule.Instance))), '');     // FIX
           Result := True;
           Exit;
         end;
@@ -195,18 +197,13 @@ var
       if (LibModule <> nil) and (LibModule.Reserved <> 0) then
         Exit;
       Validated := Assigned(AValidatePackage) and AValidatePackage(Module);
-      ModuleName := ChangeFileExt(ExtractFileName(GetModuleName(Module)), '');
+      ModuleName := ChangeFileExt(ExtractFileName(GetModuleName(Module)), '');   // FIX
       PkgName := PPkgName(Integer(InfoTable) + SizeOf(InfoTable^));
       Count := InfoTable.RequiresCount;
       for I := 0 to Count - 1 do
       begin
-{$IFDEF MSWINDOWS}
-          InternalUnitCheck(GetModuleHandle(PChar(ChangeFileExt(PkgName^.Name, '.bpl'))));
-{$ENDIF}
-{$IFDEF LINUX}
-          InternalUnitCheck(GetModuleHandle(Name));
-{$ENDIF}
-          Inc(Integer(PkgName), StrLen(PkgName.Name) + 2);
+        InternalUnitCheck(GetModuleHandle(PChar(ChangeFileExt(PkgName^.Name, '.bpl'))));     // FIX
+        Inc(Integer(PkgName), StrLen(PkgName.Name) + 2);
       end;
       Count := Integer(Pointer(PkgName)^);
       UName := PUnitName(Integer(PkgName) + 4);
@@ -272,7 +269,7 @@ begin
   if Assigned(PackageLoad) then
     PackageLoad
   else
-    raise EPackageError.CreateFmt(sInvalidPackageFile, [GetModuleName(Module)]);
+    raise EPackageError.CreateFmt(sInvalidPackageFile, [Name]); //VG 310714: Changed from original
 end;
 
 constructor TBPLLoader.Create;

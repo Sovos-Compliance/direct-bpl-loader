@@ -51,7 +51,7 @@ var
 implementation
 
 const
-  BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begin
+  BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begins
 
 type
   TMlLibraryManager = class
@@ -62,6 +62,8 @@ type
     function GetNewHandle: TLibHandle;
     function LibraryIndexByHandle(aHandle: TLibHandle): Integer;
     function LibraryIndexByName(aName: String): Integer;
+    procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream:
+        TMemoryStream);
     property Libs[aIndex: Integer]: TMlBaseLoader read GetLibs;
   public
     constructor Create;
@@ -204,6 +206,14 @@ begin
     end;
 end;
 
+/// This method is assigned to each TmlBaseLoader and forwards the event to the global MlOnDependencyLoad procedure if one is assigned
+procedure TMlLibraryManager.DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
+    aMemStream: TMemoryStream);
+begin
+  if Assigned(MlOnDependencyLoad) then
+    MlOnDependencyLoad(aLibName, aDependentLib, aLoadAction, aMemStream);
+end;
+
 constructor TMlLibraryManager.Create;
 begin
   inherited;
@@ -241,13 +251,15 @@ begin
     end else
     begin
       // Or load the library if it is a new one
-      Loader := TMlBaseLoader.Create(aSource);
+      Loader := TMlBaseLoader.Create;
       try
+        Loader.OnDependencyLoad := DoDependencyLoad;
+        Loader.LoadFromStream(aSource);
         Loader.Handle := GetNewHandle;
         Loader.Name := aLibFileName;
         Loader.RefCount := 1;
-        Result := Loader.Handle;
         fLibs.Add(Loader);
+        Result := Loader.Handle;
       except
         Loader.Free;
         raise;
@@ -374,9 +386,10 @@ begin
         // which relies on this handle (calling GetModuleHandleMem)
         Loader.Handle := GetNewHandle;
         Loader.RefCount := 1;
-        Result := Loader.Handle;
+        Loader.OnDependencyLoad := DoDependencyLoad;
         fLibs.Add(Loader);
         Loader.LoadFromStream(aSource, aLibFileName);
+        Result := Loader.Handle;
       except
         fLibs.Remove(Loader);
         Loader.Free;

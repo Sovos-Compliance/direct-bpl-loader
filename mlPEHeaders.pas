@@ -72,8 +72,10 @@ interface
 
   TNameOrID = (niName, niID);
 
+  TExternalLibrarySource = (lsHardDrive, lsMemStream); // lsHardDrive is loaded with the standard APIs, and lsMemStream with the Mem versions
   TExternalLibrary = record
-    LibraryName: string;
+    LibrarySource: TExternalLibrarySource;
+    LibraryName  : String;
     LibraryHandle: HINST;
   end;
 
@@ -88,9 +90,9 @@ interface
 
   PDLLImport = ^TDLLImport;
   TDLLImport = record
-    LibraryName: string;
+    LibraryName: String;
     LibraryHandle: HINST;
-    Entries: array of TDLLfunctionImport;
+    Entries: Array of TDLLfunctionImport;
   end;
 
   TImports = array of TDLLImport;

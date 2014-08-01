@@ -52,6 +52,7 @@ type
     fRefCount : Integer;
     fJclImage : TJclPeImage;
     fStream   : TMemoryStream;
+    fOnDependencyLoad: TMlLoadDependentLibraryEvent;
 
     MyDLLProc           : TDLLEntryProc;
     ImageDOSHeader      : TImageDOSHeader;
@@ -76,8 +77,7 @@ type
     function ProcessResources  : Boolean;
     function InitializeLibrary : Boolean;
 
-    function FindExternalLibrary(LibraryName: string): Integer;
-    function LoadExternalLibrary(LibraryName: string): Integer;
+    function LoadExternalLibrary(LibraryName: string): HINST;
     function GetExternalLibraryHandle(LibraryName: string): HINST;
     function IsValidResHandle(hResInfo: HRSRC): Boolean;
   public
@@ -93,14 +93,18 @@ type
     function LoadResource(hResInfo: HRSRC): HGLOBAL;
     function SizeOfResource(hResInfo: HRSRC): DWORD;
 
-    property Loaded   : Boolean    read fLoaded   write fLoaded;
-    property ImageBase: Pointer    read fImageBase;
-    property Handle   : TLibHandle read fHandle   write fHandle;
-    property Name     : String     read fName     write fName;
-    property RefCount : Integer    read fRefCount write fRefCount;
-  end;
+    property Loaded          : Boolean                      read fLoaded           write fLoaded;
+    property ImageBase       : Pointer                      read fImageBase;
+    property Handle          : TLibHandle                   read fHandle           write fHandle;
+    property Name            : String                       read fName             write fName;
+    property RefCount        : Integer                      read fRefCount         write fRefCount;
+    property OnDependencyLoad: TMlLoadDependentLibraryEvent read fOnDependencyLoad write fOnDependencyLoad;
+  end;                                
 
 implementation
+
+uses
+  mlLibraryManager;
 
 /// Convert a Relative Virtual Address to an absolute pointer
 function TMlBaseLoader.ConvertRVAToPointer(RVA: LongWord): Pointer;
@@ -453,28 +457,46 @@ begin
     Result := True;
 end;
 
-function TMlBaseLoader.FindExternalLibrary(LibraryName: string): integer;
+/// Check if an external dependency is already loaded and load it if not
+/// Fire the OnDependencyLoad event and load the library from drive or memory(or discard)
+/// depending on the event params
+function TMlBaseLoader.LoadExternalLibrary(LibraryName: string): HINST;
 var
-  I : integer;
+  LoadAction: TLoadAction;
+  MemStream: TMemoryStream;
+  Source: TExternalLibrarySource;
 begin
-  Result := -1;
-  for I := 0 to length(ExternalLibraryArray) - 1 do begin
-    if ExternalLibraryArray[I].LibraryName = LibraryName then begin
-      Result := I;
-      Exit;
-    end;
-  end;
-end;
+  Result := GetExternalLibraryHandle(LibraryName);
 
-function TMlBaseLoader.LoadExternalLibrary(LibraryName: string): integer;
-begin
-  Result := FindExternalLibrary(LibraryName);
-  if Result < 0 then
+  if Result = 0 then
   begin
-    Result := length(ExternalLibraryArray);
-    SetLength(ExternalLibraryArray, length(ExternalLibraryArray) + 1);
-    ExternalLibraryArray[Result].LibraryName   := LibraryName;
-    ExternalLibraryArray[Result].LibraryHandle := LoadLibrary(PCHAR(LibraryName));
+    LoadAction := laHardDrive;
+    MemStream := nil;
+    if Assigned(fOnDependencyLoad) then
+      fOnDependencyLoad(fName, LibraryName, LoadAction, MemStream);
+
+    Source := lsHardDrive;
+    case LoadAction of
+      laHardDrive:
+        begin
+          Result := LoadLibrary(PChar(LibraryName));
+          Source := lsHardDrive;
+        end;
+      laMemStream:
+        begin
+          Result := LoadLibraryMem(MemStream, LibraryName);
+          Source := lsMemStream;
+        end;
+      laDiscard:  //VG 010814: TODO: change the caller to know if the library was discarded
+        begin
+          Exit;
+        end;
+    end;
+
+    SetLength(ExternalLibraryArray, Length(ExternalLibraryArray) + 1);
+    ExternalLibraryArray[High(ExternalLibraryArray)].LibrarySource := Source;
+    ExternalLibraryArray[High(ExternalLibraryArray)].LibraryName   := LibraryName;
+    ExternalLibraryArray[High(ExternalLibraryArray)].LibraryHandle := Result;
   end;
 end;
 
@@ -483,7 +505,7 @@ var
   I : integer;
 begin
   Result := 0;
-  for I := 0 to length(ExternalLibraryArray) - 1 do begin
+  for I := 0 to Length(ExternalLibraryArray) - 1 do begin
     if ExternalLibraryArray[I].LibraryName = LibraryName then begin
       Result := ExternalLibraryArray[I].LibraryHandle;
       Exit;
@@ -512,7 +534,7 @@ begin
   ResSectionVA := Cardinal(ConvertRVAToPointer(ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress));
   Result := (hResInfo >= ResSectionVA) and (hResInfo < (ResSectionVA) + ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].Size);
 
-  // If the pointer is in the RESOURCE section make an additional check that is points to a PImageResourceDataEntry
+  // If the pointer is in the RESOURCE section make an additional check that it points to a PImageResourceDataEntry
   if  (fJclImage.ResourceList.Count > 0) then
   begin
     Result := false;
@@ -599,19 +621,23 @@ begin
   end;
   SetLength(Sections, 0);
 
-  for I := 0 to length(ExternalLibraryarray) - 1 do begin
-    ExternalLibraryarray[I].LibraryName := '';
-    FreeLibrary(ExternalLibraryarray[I].LibraryHandle);
+  // Unload the external dependency libraries
+  for I := 0 to Length(ExternalLibraryArray) - 1 do
+  begin
+    if ExternalLibraryArray[I].LibrarySource = lsHardDrive then
+      FreeLibrary(ExternalLibraryArray[I].LibraryHandle)
+    else
+      FreeLibraryMem(ExternalLibraryArray[I].LibraryHandle);
   end;
-  SetLength(ExternalLibraryarray, 0);
+  SetLength(ExternalLibraryArray, 0);
 
-  for I := 0 to length(Importarray) - 1 do begin
-    for J := 0 to length(Importarray[I].Entries) - 1 do begin
-      Importarray[I].Entries[J].Name := '';
+  for I := 0 to length(ImportArray) - 1 do begin
+    for J := 0 to length(ImportArray[I].Entries) - 1 do begin
+      ImportArray[I].Entries[J].Name := '';
     end;
-    SetLength(Importarray[I].Entries, 0);
+    SetLength(ImportArray[I].Entries, 0);
   end;
-  SetLength(Importarray, 0);
+  SetLength(ImportArray, 0);
 
   for I := 0 to length(Exportarray) - 1 do
     Exportarray[I].Name := '';
