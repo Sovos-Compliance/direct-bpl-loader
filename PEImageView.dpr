@@ -1,10 +1,9 @@
 program PEImageView;
 
-{%ToDo 'PEImageView.todo'}
-
 uses
   Forms,
-  uPEImageView in 'uPEImageView.pas' {Form2};
+  uPEImageView in 'uPEImageView.pas' {Form2},
+  mlBPLLoader in 'mlBPLLoader.pas';
 
 {$R *.res}
 
