@@ -1,4 +1,4 @@
-package TestDuplicateBpl;
+package TestDuplicateUnitBpl;
 
 {$R *.res}
 {$ALIGN 8}

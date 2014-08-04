@@ -4,7 +4,9 @@ interface
 
 uses
   TestFramework,
-  Windows, Classes,
+  Windows,
+  Classes,
+  SysUtils,
   mlLibraryManager,
   mlTypes,
   TestConstants;
@@ -34,6 +36,8 @@ type
     procedure TestGetModuleHandleMem;
 
     procedure TestLoadPackageMem;
+    procedure TestLoadPackageMemDuplicateFromDisk;
+    procedure TestLoadPackageMemDuplicatePackageUnits;
 
     procedure TestOnDependencyLoadEvent;
   end;
@@ -200,9 +204,36 @@ var
   TestClass: TPersistentClass;
 begin
   fMemStream.LoadFromFile(BPL_PATH);
-  LoadPackageMem(fMemStream, 'TestBPL');
+  LoadPackageMem(fMemStream, BPL_NAME);
   TestClass := GetClass('TButtonReload');
   CheckNotNull(TObject(TestClass), 'The class could not be loaded from the BPL. Check if project is built with Runtime packages');
+end;
+
+procedure TestLibraryManager.TestLoadPackageMemDuplicateFromDisk;
+var
+  Lib: HMODULE;
+begin
+  // Try to load the same package from disk with the standard API and from memory with the Mem one
+  // This should raise an exception and not be allowed
+  Lib := LoadPackage(BPL_PATH);
+  try
+    fMemStream.LoadFromFile(BPL_PATH);
+    ExpectedException := EMlLibraryLoadError;
+    LoadPackageMem(fMemStream, BPL_NAME);
+  finally
+    UnloadPackage(Lib);
+  end;
+end;
+
+procedure TestLibraryManager.TestLoadPackageMemDuplicatePackageUnits;
+begin
+  // Try to load the same package from disk with the standard API and from memory with the Mem one
+  // This should raise an exception and not be allowed
+  ExpectedException := EPackageError;
+  fMemStream.LoadFromFile(BPL_PATH);
+  LoadPackageMem(fMemStream, BPL_PATH);
+  fMemStream.LoadFromFile(BPL_DUPLICATE_UNIT_PATH);
+  LoadPackageMem(fMemStream, BPL_DUPLICATE_UNIT_PATH);
 end;
 
 procedure TestLibraryManager.TestOnDependencyLoadEvent;

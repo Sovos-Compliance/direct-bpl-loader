@@ -10,6 +10,7 @@
 *                                                                              *
 *  References:                                                                 *
 *  http://stackoverflow.com/questions/7566954/why-code-in-any-unit-finalization-section-of-a-package-is-not-executed-at-start
+*  http://hallvards.blogspot.com/2005/08/ultimate-delphi-ide-start-up-hack.html*
 *******************************************************************************}
 
 unit mlBPLLoader;
@@ -23,6 +24,36 @@ uses
   Classes,
   mlBaseLoader,
   mlTypes;
+
+type
+  PPackageInfoHeader = ^TPackageInfoHeader;
+  TPackageInfoHeader = packed record
+    Flags: Cardinal;
+    RequiresCount: Integer;
+  end;
+
+{$IFDEF VER130}
+  TValidatePackageProc = function (Module: HMODULE): Boolean;
+{$ENDIF VER130}
+
+type
+  TBPLLoader = class(TMlBaseLoader)
+  private
+    function HashName(Name: PChar): Cardinal;
+    function FindLibModule(Module: HModule): PLibModule;
+    function PackageInfoTable(Module: HMODULE; aSelfCheck: Boolean): PPackageInfoHeader;
+    procedure CheckForDuplicateUnits(Module: HMODULE; aValidatePackage: TValidatePackageProc);
+    procedure InitializePackage(Module: HMODULE; aValidatePackage: TValidatePackageProc);
+  public
+    constructor Create; overload;
+    constructor Create(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil); overload;
+    procedure LoadFromStream(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
+  end;
+
+implementation
+
+uses
+  mlLibraryManager;
 
 const
   cBucketSize = 1021; // better distribution than 1024
@@ -39,12 +70,6 @@ type
     Flags : Byte;
     HashCode: Byte;
     Name: array[0..255] of Char;
-  end;
-
-  PPackageInfoHeader = ^TPackageInfoHeader;
-  TPackageInfoHeader = packed record
-    Flags: Cardinal;
-    RequiresCount: Integer;
   end;
 
   PUnitHashEntry = ^TUnitHashEntry;
@@ -64,26 +89,21 @@ type
     UnitHashArray: TUnitHashArray;
   end;
 
-type
-  TBPLLoader = class(TMlBaseLoader)
-  private
-    function PackageInfoTable(Module: HMODULE): PPackageInfoHeader;
-    procedure CheckForDuplicateUnits(Module: HMODULE; AValidatePackage: TValidatePackageProc);
-    procedure InitializePackage(Module: HMODULE);
-  public
-    constructor Create; overload;
-    constructor Create(aMem: TMemoryStream; aLibFileName: String); overload;
-    procedure LoadFromStream(aMem: TMemoryStream; aLibFileName: String);
-  end;
-
-implementation
-
 var
   SysInitHC: Cardinal;
   ValidatedUnitHashBuckets: TUnitHashBuckets;
   UnitHashBuckets: TUnitHashBuckets;
 
-function HashName(Name: PChar): Cardinal;
+{$IFDEF VER130}
+function GetModuleName(Module: HMODULE): string;
+var
+  ModName: array[0..MAX_PATH] of Char;
+begin
+  SetString(Result, ModName, GetModuleFileName(Module, ModName, SizeOf(ModName)));
+end;
+{$ENDIF VER130}
+
+function TBPLLoader.HashName(Name: PChar): Cardinal;
 asm
   PUSH  ESI
   PUSH  EBX
@@ -110,7 +130,7 @@ asm
   RET
 end;
 
-function FindLibModule(Module: HModule): PLibModule; inline;
+function TBPLLoader.FindLibModule(Module: HModule): PLibModule;
 begin
   Result := LibModuleList;
   while Result <> nil do
@@ -120,35 +140,44 @@ begin
   end;
 end;
 
-function GetModuleName(Module: HMODULE): string;
-var
-  ModName: array[0..MAX_PATH] of Char;
-begin
-  SetString(Result, ModName, GetModuleFileName(Module, ModName, SizeOf(ModName)));
-end;
-
-function TBPLLoader.PackageInfoTable(Module: HMODULE): PPackageInfoHeader;
+/// Try to find the PACKAGEINFO resource to check the dependencies. Check the current module,
+/// then a disk loaded, and then a mem loaded one
+function TBPLLoader.PackageInfoTable(Module: HMODULE; aSelfCheck: Boolean): PPackageInfoHeader;
 var
   ResInfo: HRSRC;
   Data: THandle;
 begin
   Result := nil;
-  ResInfo := Windows.FindResource(Module, 'PACKAGEINFO', RT_RCDATA);
-  if ResInfo <> 0 then
-  begin
-    Data := LoadResource(ResInfo);
-    if Data <> 0 then
-      Result := PPackageInfoHeader(Data);
+  try
+    if aSelfCheck then
+    begin
+      ResInfo := FindResource('PACKAGEINFO', RT_RCDATA);
+      Data := LoadResource(ResInfo);
+    end else
+    begin
+      ResInfo := Windows.FindResource(Module, 'PACKAGEINFO', RT_RCDATA);
+      if ResInfo <> 0 then
+        Data := Windows.LoadResource(Module, ResInfo)
+      else
+      begin
+        ResInfo := FindResourceMem(Module, 'PACKAGEINFO', RT_RCDATA);
+        Data := LoadResourceMem(Module, ResInfo);
+      end;
+    end;
+  except
+    Data := 0;
   end;
+
+  if Data <> 0 then
+    Result := PPackageInfoHeader(Data);
 end;
 
-procedure TBPLLoader.CheckForDuplicateUnits(Module: HMODULE; AValidatePackage: TValidatePackageProc);
+procedure TBPLLoader.CheckForDuplicateUnits(Module: HMODULE; aValidatePackage: TValidatePackageProc);
 var
   ModuleFlags: Cardinal;
 
-  function IsUnitPresent(UnitName: PChar; HashCode: Cardinal; Module: HMODULE;
-    const Buckets: TUnitHashBuckets; const ModuleName: string;
-    var UnitPackage: string; ModuleHashCode: Cardinal): Boolean;
+  function IsUnitPresent(UnitName: PChar; HashCode: Cardinal; Module: HMODULE; const Buckets: TUnitHashBuckets; const
+      ModuleName: string; var UnitPackage: string; ModuleHashCode: Cardinal): Boolean;
   var
     HashEntry: PUnitHashEntry;
   begin
@@ -161,8 +190,14 @@ var
         if (HashEntry.DupsAllowed = (ModuleFlags and pfIgnoreDupUnits <> 0)) and
         ((HashEntry.FullHash = HashCode) and (StrIComp(UnitName, HashEntry.UnitName) = 0)) then
         begin
-          UnitPackage := ChangeFileExt(ExtractFileName(
-            GetModuleName(HMODULE(HashEntry.LibModule.Instance))), '');     // FIX
+          // Get the module name that contains the duplicate unit. It could be either a disk or mem loaded one so try both
+          UnitPackage := ChangeFileExt(ExtractFileName(GetModuleName(HMODULE(HashEntry.LibModule.Instance))), '');
+          if UnitPackage = '' then
+            try
+              UnitPackage := ChangeFileExt(ExtractFileName(GetModuleFileNameMem(TLibHandle(HashEntry.LibModule.Instance))), '');
+            except
+              UnitPackage := '';
+            end;
           Result := True;
           Exit;
         end;
@@ -172,7 +207,7 @@ var
     Result := False;
   end;
 
-  procedure InternalUnitCheck(Module: HModule);
+  procedure InternalUnitCheck(Module: HModule; aSelfCheck: Boolean);
   var
     I, J: Integer;
     InfoTable: PPackageInfoHeader;
@@ -188,7 +223,7 @@ var
     Buckets: ^TUnitHashBuckets;
     ModuleHC: Cardinal;
   begin
-    InfoTable := PackageInfoTable(Module);
+    InfoTable := PackageInfoTable(Module, aSelfCheck);
     if (InfoTable <> nil) and (InfoTable.Flags and pfModuleTypeMask = pfPackageModule) then
     begin
       if ModuleFlags = 0 then
@@ -197,12 +232,15 @@ var
       if (LibModule <> nil) and (LibModule.Reserved <> 0) then
         Exit;
       Validated := Assigned(AValidatePackage) and AValidatePackage(Module);
-      ModuleName := ChangeFileExt(ExtractFileName(GetModuleName(Module)), '');   // FIX
+      if aSelfCheck then
+        ModuleName := ChangeFileExt(ExtractFileName(Name), '')
+      else
+        ModuleName := ChangeFileExt(ExtractFileName(GetExternalLibraryName(Module)), '');   // FIXED, TO TEST
       PkgName := PPkgName(Integer(InfoTable) + SizeOf(InfoTable^));
       Count := InfoTable.RequiresCount;
       for I := 0 to Count - 1 do
       begin
-        InternalUnitCheck(GetModuleHandle(PChar(ChangeFileExt(PkgName^.Name, '.bpl'))));     // FIX
+        InternalUnitCheck(GetExternalLibraryHandle(PChar(ChangeFileExt(PkgName^.Name, '.bpl'))), false);     // FIXED, TO TEST
         Inc(Integer(PkgName), StrLen(PkgName.Name) + 2);
       end;
       Count := Integer(Pointer(PkgName)^);
@@ -223,28 +261,27 @@ var
         for I := 0 to Count - 1 do
         begin
           HC := HashName(UName.Name);
-          with UName^ do
-            // Test Flags to ignore weak package units
-            if ((HC <> SysInitHC) or (StrIComp(Name, 'SysInit') <> 0)) and
-            (Flags and ufWeakPackageUnit = 0) then
-            begin
-              // Always check against the unvalidated packages
-              if IsUnitPresent(Name, HC, Module, UnitHashBuckets, ModuleName, UnitPackage, ModuleHC) or
-              // if the package is not validateed also check it against the validated ones
-                (not Validated and IsUnitPresent(Name, HC, Module, ValidatedUnitHashBuckets, ModuleName, UnitPackage, ModuleHC)) then
-                raise EPackageError.CreateResFmt(@SDuplicatePackageUnit, [ModuleName, Name, UnitPackage]);
-              ModuleInfo.UnitHashArray[J].UnitName := @UName.Name;
-              ModuleInfo.UnitHashArray[J].LibModule := LibModule;
-              ModuleInfo.UnitHashArray[J].DupsAllowed := InfoTable.Flags and pfIgnoreDupUnits <> 0;
-              ModuleInfo.UnitHashArray[J].Prev := nil;
-              ModuleInfo.UnitHashArray[J].FullHash := HC;
-              HC := HC mod cBucketSize;
-              ModuleInfo.UnitHashArray[J].Next := Buckets[HC];
-              Buckets[HC] := @ModuleInfo.UnitHashArray[J];
-              if ModuleInfo.UnitHashArray[J].Next <> nil then
-                ModuleInfo.UnitHashArray[J].Next.Prev := Buckets[HC];
-              Inc(J);
-            end;
+          // Test Flags to ignore weak package units
+          if ((HC <> SysInitHC) or (StrIComp(UName^.Name, 'SysInit') <> 0)) and
+          (UName^.Flags and ufWeakPackageUnit = 0) then
+          begin
+            // Always check against the unvalidated packages
+            if IsUnitPresent(UName^.Name, HC, Module, UnitHashBuckets, ModuleName, UnitPackage, ModuleHC) or
+            // if the package is not validateed also check it against the validated ones
+              (not Validated and IsUnitPresent(UName^.Name, HC, Module, ValidatedUnitHashBuckets, ModuleName, UnitPackage, ModuleHC)) then
+              raise EPackageError.CreateResFmt(@SDuplicatePackageUnit, [ModuleName, UName^.Name, UnitPackage]);
+            ModuleInfo.UnitHashArray[J].UnitName := @UName.Name;
+            ModuleInfo.UnitHashArray[J].LibModule := LibModule;
+            ModuleInfo.UnitHashArray[J].DupsAllowed := InfoTable.Flags and pfIgnoreDupUnits <> 0;
+            ModuleInfo.UnitHashArray[J].Prev := nil;
+            ModuleInfo.UnitHashArray[J].FullHash := HC;
+            HC := HC mod cBucketSize;
+            ModuleInfo.UnitHashArray[J].Next := Buckets[HC];
+            Buckets[HC] := @ModuleInfo.UnitHashArray[J];
+            if ModuleInfo.UnitHashArray[J].Next <> nil then
+              ModuleInfo.UnitHashArray[J].Next.Prev := Buckets[HC];
+            Inc(J);
+          end;
           Inc(Integer(UName), StrLen(UName.Name) + 3);
         end;
       end;
@@ -255,21 +292,21 @@ begin
   if SysInitHC = 0 then
     SysInitHC := HashName('SysInit');
   ModuleFlags := 0;
-  InternalUnitCheck(Module);
+  InternalUnitCheck(Module, true);
 end;
 
-procedure TBPLLoader.InitializePackage(Module: HMODULE);
+procedure TBPLLoader.InitializePackage(Module: HMODULE; aValidatePackage: TValidatePackageProc);
 type
   TPackageLoad = procedure;
 var
   PackageLoad: TPackageLoad;
 begin
-  CheckForDuplicateUnits(Module, nil);
+  CheckForDuplicateUnits(Module, aValidatePackage);
   @PackageLoad := GetFunctionAddress('Initialize'); //Do not localize
   if Assigned(PackageLoad) then
     PackageLoad
   else
-    raise EPackageError.CreateFmt(sInvalidPackageFile, [Name]); //VG 310714: Changed from original
+    raise EPackageError.CreateFmt(sInvalidPackageFile, [Name]);
 end;
 
 constructor TBPLLoader.Create;
@@ -277,7 +314,7 @@ begin
   inherited;
 end;
 
-constructor TBPLLoader.Create(aMem: TMemoryStream; aLibFileName: String);
+constructor TBPLLoader.Create(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
 begin
   Create;
 
@@ -288,14 +325,28 @@ begin
     raise EMlLibraryLoadError.Create('Can not load a library from an unassigned TStream');
 end;
 
-procedure TBPLLoader.LoadFromStream(aMem: TMemoryStream; aLibFileName: String);
+procedure TBPLLoader.LoadFromStream(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc =
+    nil);
+var
+  LibModule: PLibModule;
 begin
   if aLibFileName = '' then
     raise EMlLibraryLoadError.Create('The package file name can not be empty');
-  inherited LoadFromStream(aMem);
+
+  if GetModuleHandle(PChar(aLibFileName)) <> 0 then
+    raise EMlLibraryLoadError.CreateFmt('The %s package is already loaded from disk with the regular LoadPackage.' + #13#10 +
+      ' Loading it again from memory will result in unpredicted behaviour.', [aLibFileName]);
+
+  inherited LoadFromStream(aMem, aLibFileName);
   try
-    Name := aLibFileName;
-    InitializePackage(Cardinal(Handle));
+    // VG 040814: TODO: RegisterModule should be done automatically when the BPL is loaded from memory in the BaseLoader
+    // Why doesn't it happen? Check and move this call in the base class.
+    New(LibModule);
+    ZeroMemory(LibModule, SizeOf(TLibModule));
+    LibModule.Instance := Handle;
+    RegisterModule(LibModule);
+
+    InitializePackage(Cardinal(Handle), aValidatePackage);
   except
     Unload;
     raise;

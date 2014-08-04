@@ -9,9 +9,11 @@ uses
   
 const
   DLL_PATH = '..\TestDLLs\TestDll.dll';
-  BPL_PATH = '..\TestDLLs\TestBpl.bpl';
   DLL_NAME = '..\TestDLLs\TestDll.dll';  // The DLL/BPL names can be anything, but is best to
-  BPL_NAME = '..\TestDLLs\TestBpl.bpl';  // be the same as the path to the library
+                                         // be the same as the path to the library
+  BPL_PATH = '..\TestDLLs\TestBpl.bpl';
+  BPL_NAME = '..\TestDLLs\TestBpl.bpl';
+  BPL_DUPLICATE_UNIT_PATH = '..\TestDLLs\TestDuplicateUnitBpl.bpl';  // For testing the same unit contained in two packages
 
   TEST_FUNCTION_NAME = 'TestAdd';
 

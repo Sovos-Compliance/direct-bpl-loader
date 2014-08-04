@@ -30,7 +30,7 @@ type
   ///   laDiscard - don't load the library
   ///   laHardDrive - load the library with the standard LoadLibrary Windows API
   ///   laMemStream - load the library from the stream passed in aMemStream (which has to be freed later)
-  TLoadAction = (laHardDrive, laMemStream, laDiscard);
+  TLoadAction = (laHardDisk, laMemStream, laDiscard);
   TMlLoadDependentLibraryEvent = procedure(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
       aMemStream: TMemoryStream) of object;
 

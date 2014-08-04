@@ -25,7 +25,6 @@ uses
   mlBaseLoader,
   mlBPLLoader;
 
-
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
 function LoadLibraryMem(aSource: TMemoryStream; aLibFileName: String = ''): TLibHandle;
 procedure FreeLibraryMem(hModule: TLibHandle);
@@ -37,8 +36,9 @@ function GetModuleFileNameMem(hModule: TLibHandle): String;
 function GetModuleHandleMem(ModuleName: String): TLibHandle;
 
 /// BPL loading functions
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
-procedure UnloadPackage(Module: TLibHandle);
+function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
+    TLibHandle; overload;
+procedure UnloadPackageMem(Module: TLibHandle);
 
 //TODO VG 090714: This method is used only to reset the loader during unit testing. Can be removed
 {$IFDEF _CONSOLE_TESTRUNNER}
@@ -76,7 +76,7 @@ type
     function SizeofResource(aHandle: TLibHandle; hResInfo: HRSRC): DWORD;
     function GetModuleFileName(aHandle: TLibHandle): String;
     function GetModuleHandle(aModuleName: String): TLibHandle;
-    function LoadPackage(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
+    function LoadPackage(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc): TLibHandle;
     procedure UnloadPackage(aHandle: TLibHandle);
   end;
 
@@ -127,12 +127,13 @@ end;
 
 { BPL Library memory functions }
 
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
+function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
+    TLibHandle;
 begin
-  Result := Manager.LoadPackage(aSource, aLibFileName);
+  Result := Manager.LoadPackage(aSource, aLibFileName, aValidatePackage);
 end;
 
-procedure UnloadPackage(Module: TLibHandle);
+procedure UnloadPackageMem(Module: TLibHandle);
 begin
   Manager.UnloadPackage(Module);
 end;
@@ -254,9 +255,8 @@ begin
       Loader := TMlBaseLoader.Create;
       try
         Loader.OnDependencyLoad := DoDependencyLoad;
-        Loader.LoadFromStream(aSource);
+        Loader.LoadFromStream(aSource, aLibFileName);
         Loader.Handle := GetNewHandle;
-        Loader.Name := aLibFileName;
         Loader.RefCount := 1;
         fLibs.Add(Loader);
         Result := Loader.Handle;
@@ -362,7 +362,8 @@ end;
 
 /// Function to emulate the LoadPackage from a stream
 /// Source is taken from the original Delphi RTL functions LoadPackage, InitializePackage in SysUtils
-function TMlLibraryManager.LoadPackage(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
+function TMlLibraryManager.LoadPackage(aSource: TMemoryStream; aLibFileName: String; aValidatePackage:
+    TValidatePackageProc): TLibHandle;
 var
   Loader: TBPLLoader;
   Index: Integer;
@@ -381,14 +382,11 @@ begin
       // Or load the library if it is a new one
       Loader := TBPLLoader.Create;
       try
-        // For BPLs the handle must be assigned and added to the list before LoadFromStream
-        // due to the internal checking of BPL dependencies in TMlBPLLoader.CheckForDuplicateUnits,
-        // which relies on this handle (calling GetModuleHandleMem)
-        Loader.Handle := GetNewHandle;
-        Loader.RefCount := 1;
         Loader.OnDependencyLoad := DoDependencyLoad;
+        Loader.Handle := GetNewHandle;
+        Loader.LoadFromStream(aSource, aLibFileName, aValidatePackage);
+        Loader.RefCount := 1;
         fLibs.Add(Loader);
-        Loader.LoadFromStream(aSource, aLibFileName);
         Result := Loader.Handle;
       except
         fLibs.Remove(Loader);

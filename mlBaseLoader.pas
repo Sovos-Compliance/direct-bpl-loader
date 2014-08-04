@@ -77,15 +77,17 @@ type
     function ProcessResources  : Boolean;
     function InitializeLibrary : Boolean;
 
-    function LoadExternalLibrary(LibraryName: string): HINST;
-    function GetExternalLibraryHandle(LibraryName: string): HINST;
+    function LoadExternalLibrary(LibraryName: String): HINST;
     function IsValidResHandle(hResInfo: HRSRC): Boolean;
+  protected
+    function GetExternalLibraryHandle(LibraryName: String): HINST;
+    function GetExternalLibraryName(aLibHandle: HINST): String;
   public
-    constructor Create(aMem: TMemoryStream); overload;
+    constructor Create(aMem: TMemoryStream; const aName: String = ''); overload;
     constructor Create; overload;
     destructor Destroy; override;
 
-    procedure LoadFromStream(aMem: TMemoryStream);
+    procedure LoadFromStream(aMem: TMemoryStream; const aName: String = '');
     procedure Unload;
 
     function GetFunctionAddress(aName: String): Pointer;
@@ -96,7 +98,7 @@ type
     property Loaded          : Boolean                      read fLoaded           write fLoaded;
     property ImageBase       : Pointer                      read fImageBase;
     property Handle          : TLibHandle                   read fHandle           write fHandle;
-    property Name            : String                       read fName             write fName;
+    property Name            : String                       read fName;
     property RefCount        : Integer                      read fRefCount         write fRefCount;
     property OnDependencyLoad: TMlLoadDependentLibraryEvent read fOnDependencyLoad write fOnDependencyLoad;
   end;                                
@@ -460,7 +462,7 @@ end;
 /// Check if an external dependency is already loaded and load it if not
 /// Fire the OnDependencyLoad event and load the library from drive or memory(or discard)
 /// depending on the event params
-function TMlBaseLoader.LoadExternalLibrary(LibraryName: string): HINST;
+function TMlBaseLoader.LoadExternalLibrary(LibraryName: String): HINST;
 var
   LoadAction: TLoadAction;
   MemStream: TMemoryStream;
@@ -470,17 +472,17 @@ begin
 
   if Result = 0 then
   begin
-    LoadAction := laHardDrive;
+    LoadAction := laHardDisk;
     MemStream := nil;
     if Assigned(fOnDependencyLoad) then
       fOnDependencyLoad(fName, LibraryName, LoadAction, MemStream);
 
-    Source := lsHardDrive;
+    Source := lsHardDisk;
     case LoadAction of
-      laHardDrive:
+      laHardDisk:
         begin
           Result := LoadLibrary(PChar(LibraryName));
-          Source := lsHardDrive;
+          Source := lsHardDisk;
         end;
       laMemStream:
         begin
@@ -500,7 +502,7 @@ begin
   end;
 end;
 
-function TMlBaseLoader.GetExternalLibraryHandle(LibraryName: string): HINST;
+function TMlBaseLoader.GetExternalLibraryHandle(LibraryName: String): HINST;
 var
   I : integer;
 begin
@@ -508,6 +510,21 @@ begin
   for I := 0 to Length(ExternalLibraryArray) - 1 do begin
     if ExternalLibraryArray[I].LibraryName = LibraryName then begin
       Result := ExternalLibraryArray[I].LibraryHandle;
+      Exit;
+    end;
+  end;
+end;
+
+function TMlBaseLoader.GetExternalLibraryName(aLibHandle: HINST): String;
+var
+  I : integer;
+begin
+  Result := '';
+  for I := 0 to Length(ExternalLibraryArray) - 1 do
+  begin
+    if ExternalLibraryArray[I].LibraryHandle = aLibHandle then
+    begin
+      Result := ExternalLibraryArray[I].LibraryName;
       Exit;
     end;
   end;
@@ -547,21 +564,21 @@ begin
   end;
 end;
 
-constructor TMlBaseLoader.Create;
-begin
-  inherited Create;
-  fJclImage := TJclPeImage.Create;
-end;
-
-constructor TMlBaseLoader.Create(aMem: TMemoryStream);
+constructor TMlBaseLoader.Create(aMem: TMemoryStream; const aName: String = '');
 begin
   Create;
 
   // Auto load the stream if one is passed. Otherwise it has to be loaded manually with LoadFromStream
   if Assigned(aMem) then
-    LoadFromStream(aMem)
+    LoadFromStream(aMem, aName)
   else
     raise EMlLibraryLoadError.Create('Can not load a library from an unassigned TStream');
+end;
+
+constructor TMlBaseLoader.Create;
+begin
+  inherited Create;
+  fJclImage := TJclPeImage.Create;
 end;
 
 destructor TMlBaseLoader.Destroy;
@@ -574,7 +591,7 @@ begin
 end;
 
 /// Main method to load the library in memory and process the sections, imports, exports, resources, etc
-procedure TMlBaseLoader.LoadFromStream(aMem: TMemoryStream);
+procedure TMlBaseLoader.LoadFromStream(aMem: TMemoryStream; const aName: String = '');
 begin
   if fLoaded then
     raise EMlLibraryLoadError.Create('There is a loaded library. Please unload it first');
@@ -601,6 +618,8 @@ begin
     Unload;
     raise EMlLibraryLoadError.Create('Library could not be loaded from memory');
   end;
+
+  fName := aName;
 end;
 
 /// Unload the library, free the memory and reset all the arrays with exports, imports, resources, etc
@@ -609,6 +628,8 @@ var
   I, J: integer;
 begin
   fLoaded := false;
+  fName   := '';
+  fHandle := 0;
 
   if Assigned(MyDLLProc) then
     MyDLLProc(Cardinal(fImageBase), DLL_PROCESS_DETACH, nil);
@@ -624,7 +645,7 @@ begin
   // Unload the external dependency libraries
   for I := 0 to Length(ExternalLibraryArray) - 1 do
   begin
-    if ExternalLibraryArray[I].LibrarySource = lsHardDrive then
+    if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
       FreeLibrary(ExternalLibraryArray[I].LibraryHandle)
     else
       FreeLibraryMem(ExternalLibraryArray[I].LibraryHandle);
