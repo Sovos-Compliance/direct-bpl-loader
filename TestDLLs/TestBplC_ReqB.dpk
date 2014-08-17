@@ -1,20 +1,20 @@
-package TestDuplicateUnitBpl;
+package TestBplC_ReqB;
 
 {$R *.res}
 {$ALIGN 8}
 {$ASSERTIONS ON}
 {$BOOLEVAL OFF}
-{$DEBUGINFO OFF}
+{$DEBUGINFO ON}
 {$EXTENDEDSYNTAX ON}
 {$IMPORTEDDATA ON}
 {$IOCHECKS ON}
-{$LOCALSYMBOLS OFF}
+{$LOCALSYMBOLS ON}
 {$LONGSTRINGS ON}
 {$OPENSTRINGS ON}
-{$OPTIMIZATION ON}
+{$OPTIMIZATION OFF}
 {$OVERFLOWCHECKS OFF}
 {$RANGECHECKS OFF}
-{$REFERENCEINFO OFF}
+{$REFERENCEINFO ON}
 {$SAFEDIVIDE OFF}
 {$STACKFRAMES OFF}
 {$TYPEDADDRESS OFF}
@@ -23,13 +23,14 @@ package TestDuplicateUnitBpl;
 {$MINENUMSIZE 1}
 {$IMAGEBASE $400000}
 {$IMPLICITBUILD OFF}
-{$DEFINE RELEASE}
+{$DEFINE DEBUG}
 
 requires
   rtl,
-  vcl;
+  vcl,
+  TestBplB_ReqA;
 
 contains
-  QButtonReload in 'QButtonReload.pas';
+  TestClassC in 'TestClassC.pas';
 
 end.

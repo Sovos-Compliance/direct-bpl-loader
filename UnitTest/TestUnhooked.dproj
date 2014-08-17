@@ -23,10 +23,10 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <Version>7.0</Version>
     <DCC_Define>DEBUG;_CONSOLE_TESTRUNNER</DCC_Define>
-    <DCC_UnitSearchPath>;$(BDS)\Source\DUnit\src</DCC_UnitSearchPath>
-    <DCC_ResourcePath>;$(BDS)\Source\DUnit\src</DCC_ResourcePath>
-    <DCC_ObjPath>;$(BDS)\Source\DUnit\src</DCC_ObjPath>
-    <DCC_IncludePath>;$(BDS)\Source\DUnit\src</DCC_IncludePath>
+    <DCC_UnitSearchPath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;;$(BDS)\Source\DUnit\src</DCC_UnitSearchPath>
+    <DCC_ResourcePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;;$(BDS)\Source\DUnit\src</DCC_ResourcePath>
+    <DCC_ObjPath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;;$(BDS)\Source\DUnit\src</DCC_ObjPath>
+    <DCC_IncludePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;;$(BDS)\Source\DUnit\src</DCC_IncludePath>
     <DCC_DcuOutput>..\Win32</DCC_DcuOutput>
     <DCC_ObjOutput>..\Win32</DCC_ObjOutput>
     <DCC_HppOutput>..\Win32</DCC_HppOutput>

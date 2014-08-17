@@ -32,29 +32,6 @@ type
     RequiresCount: Integer;
   end;
 
-{$IFDEF VER130}
-  TValidatePackageProc = function (Module: HMODULE): Boolean;
-{$ENDIF VER130}
-
-type
-  TBPLLoader = class(TMlBaseLoader)
-  private
-    function HashName(Name: PChar): Cardinal;
-    function FindLibModule(Module: HModule): PLibModule;
-    function PackageInfoTable(Module: HMODULE; aSelfCheck: Boolean): PPackageInfoHeader;
-    procedure CheckForDuplicateUnits(Module: HMODULE; aValidatePackage: TValidatePackageProc);
-    procedure InitializePackage(Module: HMODULE; aValidatePackage: TValidatePackageProc);
-  public
-    constructor Create; overload;
-    constructor Create(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil); overload;
-    procedure LoadFromStream(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
-  end;
-
-implementation
-
-uses
-  mlLibraryManager;
-
 const
   cBucketSize = 1021; // better distribution than 1024
 
@@ -88,6 +65,34 @@ type
     Validated: Boolean;
     UnitHashArray: TUnitHashArray;
   end;
+
+{$IFDEF VER130}
+  TValidatePackageProc = function (Module: HMODULE): Boolean;
+{$ENDIF VER130}
+
+type
+  TBPLLoader = class(TMlBaseLoader)
+  private
+    fPackageInitialized: Boolean;
+    function HashName(Name: PChar): Cardinal;
+    function FindLibModule(Module: HModule): PLibModule;
+    function PackageInfoTable(Module: HMODULE; aSelfCheck: Boolean): PPackageInfoHeader;
+    procedure CheckForDuplicateUnits(Module: HMODULE; aValidatePackage: TValidatePackageProc);
+    procedure InitializePackage(Module: HMODULE; aValidatePackage: TValidatePackageProc);
+    procedure FinalizePackage(Module: HMODULE);
+    procedure ModuleUnloaded(Module: Longword);
+  public
+    constructor Create; overload;
+    constructor Create(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil); overload;
+    destructor Destroy; override;
+    procedure LoadFromStream(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
+    procedure Unload; overload;
+  end;
+
+implementation
+
+uses
+  mlLibraryManager;
 
 var
   SysInitHC: Cardinal;
@@ -135,7 +140,8 @@ begin
   Result := LibModuleList;
   while Result <> nil do
   begin
-    if Result.Instance = Cardinal(Module) then Exit;
+    if Result.Instance = Cardinal(Module) then
+      Exit;
     Result := Result.Next;
   end;
 end;
@@ -235,12 +241,12 @@ var
       if aSelfCheck then
         ModuleName := ChangeFileExt(ExtractFileName(Name), '')
       else
-        ModuleName := ChangeFileExt(ExtractFileName(GetExternalLibraryName(Module)), '');   // FIXED, TO TEST
+        ModuleName := ChangeFileExt(ExtractFileName(GetExternalLibraryName(Module)), '');
       PkgName := PPkgName(Integer(InfoTable) + SizeOf(InfoTable^));
       Count := InfoTable.RequiresCount;
       for I := 0 to Count - 1 do
       begin
-        InternalUnitCheck(GetExternalLibraryHandle(PChar(ChangeFileExt(PkgName^.Name, '.bpl'))), false);     // FIXED, TO TEST
+        InternalUnitCheck(GetExternalLibraryHandle(PChar(ChangeFileExt(PkgName^.Name, '.bpl'))), false); 
         Inc(Integer(PkgName), StrLen(PkgName.Name) + 2);
       end;
       Count := Integer(Pointer(PkgName)^);
@@ -309,6 +315,53 @@ begin
     raise EPackageError.CreateFmt(sInvalidPackageFile, [Name]);
 end;
 
+procedure TBPLLoader.FinalizePackage(Module: HMODULE);
+type
+  TPackageUnload = procedure;
+var
+  PackageUnload: TPackageUnload;
+begin
+  @PackageUnload := GetFunctionAddress('Finalize'); //Do not localize
+  if Assigned(PackageUnload) then
+    PackageUnload
+  else
+    raise EPackageError.CreateRes(@sInvalidPackageHandle);
+end;
+
+procedure TBPLLoader.ModuleUnloaded(Module: Longword);
+var
+  LibModule: PLibModule;
+  ModuleInfo: PModuleInfo;
+  I: Integer;
+  HC: Cardinal;
+  Buckets: ^TUnitHashBuckets;
+begin
+  LibModule := FindLibModule(Module);
+  if (LibModule <> nil) and (LibModule.Reserved <> 0) then
+  begin
+    ModuleInfo := PModuleInfo(LibModule.Reserved);
+    if ModuleInfo.Validated then
+      Buckets := @ValidatedUnitHashBuckets
+    else
+      Buckets := @UnitHashBuckets;
+    for I := Low(ModuleInfo.UnitHashArray) to High(ModuleInfo.UnitHashArray) do
+    begin
+      if ModuleInfo.UnitHashArray[I].Prev <> nil then
+        ModuleInfo.UnitHashArray[I].Prev.Next := ModuleInfo.UnitHashArray[I].Next
+      else if ModuleInfo.UnitHashArray[I].UnitName <> nil then
+      begin
+        HC := HashName(ModuleInfo.UnitHashArray[I].UnitName) mod cBucketSize;
+        if Buckets[HC] = @ModuleInfo.UnitHashArray[I] then
+          Buckets[HC] := ModuleInfo.UnitHashArray[I].Next;
+      end;
+      if ModuleInfo.UnitHashArray[I].Next <> nil then
+        ModuleInfo.UnitHashArray[I].Next.Prev := ModuleInfo.UnitHashArray[I].Prev;
+    end;
+    Dispose(ModuleInfo);
+    LibModule.Reserved := 0;
+  end;
+end;
+
 constructor TBPLLoader.Create;
 begin
   inherited;
@@ -325,6 +378,13 @@ begin
     raise EMlLibraryLoadError.Create('Can not load a library from an unassigned TStream');
 end;
 
+destructor TBPLLoader.Destroy;
+begin
+  if Loaded then
+    Unload;
+  inherited;
+end;
+
 procedure TBPLLoader.LoadFromStream(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc =
     nil);
 var
@@ -337,6 +397,8 @@ begin
     raise EMlLibraryLoadError.CreateFmt('The %s package is already loaded from disk with the regular LoadPackage.' + #13#10 +
       ' Loading it again from memory will result in unpredicted behaviour.', [aLibFileName]);
 
+  Assert(Handle <> 0, 'The Handle of a package must be assigned before loading it from a stream. It is used in RegisterModule');
+
   inherited LoadFromStream(aMem, aLibFileName);
   try
     // VG 040814: TODO: RegisterModule should be done automatically when the BPL is loaded from memory in the BaseLoader
@@ -347,10 +409,29 @@ begin
     RegisterModule(LibModule);
 
     InitializePackage(Cardinal(Handle), aValidatePackage);
+    fPackageInitialized := true;
   except
     Unload;
     raise;
   end;
+end;
+
+procedure TBPLLoader.Unload;
+var
+  LibModule: PLibModule;
+begin
+  Assert(Handle <> 0, 'The Handle of a package must not be 0 when calling UnregisterModule');
+  if fPackageInitialized then
+    FinalizePackage(Handle);
+
+  LibModule := FindLibModule(Handle);
+  if Assigned(LibModule) then
+  begin
+    ModuleUnloaded(Handle);
+    UnregisterModule(LibModule);
+  end;
+
+  inherited;
 end;
 
 end.

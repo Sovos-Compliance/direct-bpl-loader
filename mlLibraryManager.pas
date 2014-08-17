@@ -63,7 +63,7 @@ type
     function LibraryIndexByHandle(aHandle: TLibHandle): Integer;
     function LibraryIndexByName(aName: String): Integer;
     procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream:
-        TMemoryStream);
+        TMemoryStream; var aFreeStream: Boolean);
     property Libs[aIndex: Integer]: TMlBaseLoader read GetLibs;
   public
     constructor Create;
@@ -200,7 +200,7 @@ begin
   if aName = '' then
     Exit;
   for I := 0 to fLibs.Count - 1 do
-    if SameText(Libs[I].Name, aName) then
+    if SameText(Libs[I].Name, ExtractFileName(aName)) then
     begin
       Result := I;
       Exit;
@@ -209,10 +209,10 @@ end;
 
 /// This method is assigned to each TmlBaseLoader and forwards the event to the global MlOnDependencyLoad procedure if one is assigned
 procedure TMlLibraryManager.DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-    aMemStream: TMemoryStream);
+    aMemStream: TMemoryStream; var aFreeStream: Boolean);
 begin
   if Assigned(MlOnDependencyLoad) then
-    MlOnDependencyLoad(aLibName, aDependentLib, aLoadAction, aMemStream);
+    MlOnDependencyLoad(aLibName, aDependentLib, aLoadAction, aMemStream, aFreeStream);
 end;
 
 constructor TMlLibraryManager.Create;
@@ -223,11 +223,9 @@ begin
 end;
 
 destructor TMlLibraryManager.Destroy;
-var
-  I: Integer;
 begin
-  for I := fLibs.Count - 1 downto 0 do
-    Libs[I].Free;
+  while fLibs.Count > 0 do
+    FreeLibrary(Libs[0].Handle);
   fLibs.Free;
   DeleteCriticalSection(fCrit);
   inherited;
@@ -254,13 +252,14 @@ begin
       // Or load the library if it is a new one
       Loader := TMlBaseLoader.Create;
       try
+        fLibs.Add(Loader); // It is added first to reserve the handle given
         Loader.OnDependencyLoad := DoDependencyLoad;
-        Loader.LoadFromStream(aSource, aLibFileName);
         Loader.Handle := GetNewHandle;
         Loader.RefCount := 1;
-        fLibs.Add(Loader);
+        Loader.LoadFromStream(aSource, aLibFileName);
         Result := Loader.Handle;
       except
+        fLibs.Remove(Loader);
         Loader.Free;
         raise;
       end;
@@ -274,17 +273,19 @@ end;
 procedure TMlLibraryManager.FreeLibrary(aHandle: TLibHandle);
 var
   Index: Integer;
+  Lib: TMlBaseLoader;
 begin
   EnterCriticalSection(fCrit);
   try
     Index := LibraryIndexByHandle(aHandle);
     if Index <> -1 then
     begin
-      Libs[Index].RefCount := Libs[Index].RefCount - 1;
-      if Libs[Index].RefCount = 0 then
+      Lib := Libs[Index];
+      Lib.RefCount := Lib.RefCount - 1;
+      if Lib.RefCount = 0 then
       begin
-        Libs[Index].Free;
-        fLibs.Delete(Index);
+        Lib.Free;
+        fLibs.Remove(Lib);
       end;
     end
     else
@@ -382,11 +383,11 @@ begin
       // Or load the library if it is a new one
       Loader := TBPLLoader.Create;
       try
+        fLibs.Add(Loader); // It is added first to reserve the handle given
         Loader.OnDependencyLoad := DoDependencyLoad;
-        Loader.Handle := GetNewHandle;
-        Loader.LoadFromStream(aSource, aLibFileName, aValidatePackage);
+        Loader.Handle := GetNewHandle; // The handle must be assigned before LoadFromStream, because it is used in RegisterModule
         Loader.RefCount := 1;
-        fLibs.Add(Loader);
+        Loader.LoadFromStream(aSource, aLibFileName, aValidatePackage);
         Result := Loader.Handle;
       except
         fLibs.Remove(Loader);
@@ -402,17 +403,19 @@ end;
 procedure TMlLibraryManager.UnloadPackage(aHandle: TLibHandle);
 var
   Index: Integer;
+  Lib: TBPLLoader;
 begin
   EnterCriticalSection(fCrit);
   try
     Index := LibraryIndexByHandle(aHandle);
     if Index <> -1 then
     begin
-      Libs[Index].RefCount := Libs[Index].RefCount - 1;
-      if Libs[Index].RefCount = 0 then
+      Lib := Libs[Index] as TBPLLoader;
+      Lib.RefCount := Lib.RefCount - 1;
+      if Lib.RefCount = 0 then
       begin
-        Libs[Index].Free;
-        fLibs.Delete(Index);
+        Lib.Free;
+        fLibs.Remove(Lib);
       end;
     end
     else
