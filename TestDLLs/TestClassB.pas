@@ -1,12 +1,13 @@
-unit QButtonReload;
+unit TestClassB;
 
 interface
 
 uses
-  SysUtils, Classes, StdCtrls;
+  SysUtils, Classes, StdCtrls,
+  TestClassA;
 
 type
-  TButtonReload = class(TButton)
+  TTestClassB = class(TTestClassA)
   private
     { Private declarations }
   protected
@@ -23,10 +24,10 @@ implementation
 
 procedure Register;
 begin
-  RegisterComponents('Convey', [TButtonReload]);
+  RegisterComponents('Convey', [TTestClassB]);
 end;
 
 initialization
-  RegisterClass(TButtonReload); //VG 250614: Added line. It is needed so GetClass can find the class after the package is loaded
+  RegisterClass(TTestClassB);
 
 end.

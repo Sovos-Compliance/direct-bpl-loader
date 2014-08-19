@@ -32,7 +32,7 @@ type
   ///   laMemStream - load the library from the stream passed in aMemStream (which has to be freed later)
   TLoadAction = (laHardDisk, laMemStream, laDiscard);
   TMlLoadDependentLibraryEvent = procedure(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-      aMemStream: TMemoryStream) of object;
+      aMemStream: TMemoryStream; var aFreeStream: Boolean) of object;
 
 implementation
 

@@ -6,14 +6,17 @@ interface
 
 uses
   Windows;
-  
+
 const
-  DLL_PATH = '..\TestDLLs\TestDll.dll';
-  DLL_NAME = '..\TestDLLs\TestDll.dll';  // The DLL/BPL names can be anything, but is best to
-                                         // be the same as the path to the library
-  BPL_PATH = '..\TestDLLs\TestBpl.bpl';
-  BPL_NAME = '..\TestDLLs\TestBpl.bpl';
-  BPL_DUPLICATE_UNIT_PATH = '..\TestDLLs\TestDuplicateUnitBpl.bpl';  // For testing the same unit contained in two packages
+  DLL_PATH   = '..\TestDLLs\TestDll.dll';
+  BPL_PATH_A = '..\TestDLLs\TestBplA.bpl';
+  BPL_PATH_B = '..\TestDLLs\TestBplB_ReqA.bpl';  // For testing package dependencies
+  BPL_PATH_C = '..\TestDLLs\TestBplC_ReqB.bpl';  // For testing package dependencies
+  BPL_DUPLICATE_UNIT_PATH = '..\TestDLLs\TestBplDuplicateUnit.bpl';  // For testing the same unit contained in two packages
+
+  TEST_CLASS_NAME_A = 'TTestClassA';
+  TEST_CLASS_NAME_B = 'TTestClassB';
+  TEST_CLASS_NAME_C = 'TTestClassC';
 
   TEST_FUNCTION_NAME = 'TestAdd';
 

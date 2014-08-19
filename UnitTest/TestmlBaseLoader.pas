@@ -19,7 +19,8 @@ type
     fMlBaseLoader: TMlBaseLoader;
     fEventCalled: Boolean;
     procedure LoadHelper(aPath: String);
-    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream);
+    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream;
+        var aFreeStream: Boolean);
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -53,6 +54,8 @@ end;
 
 procedure TestTMlBaseLoader.SetUp;
 begin
+  SetCurrentDir('..\TestDLLs'); // So the test DLL/BPLs can be found
+
   fMemStream := TMemoryStream.Create;
   fMlBaseLoader := TMlBaseLoader.Create;
 end;
@@ -220,14 +223,15 @@ begin
   fMlBaseLoader.SizeOfResource(TEST_WRONG_RES_HANDLE);
 end;
 
-procedure TestTMlBaseLoader.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream);
+procedure TestTMlBaseLoader.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
+    aMemStream: TMemoryStream; var aFreeStream: Boolean);
 begin
   fEventCalled := true;
 end;
 
 procedure TestTMlBaseLoader.TestOnDependencyLoadEvent;
 begin    
-  fMemStream.LoadFromFile(DLL_PATH);
+  fMemStream.LoadFromFile(BPL_PATH_B);
   fMlBaseLoader.OnDependencyLoad := TestEvent;
   fMlBaseLoader.LoadFromStream(fMemStream);
   CheckTrue(fEventCalled, 'The OnDependencyLoad event was not called');

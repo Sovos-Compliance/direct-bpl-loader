@@ -82,6 +82,7 @@ type
   protected
     function GetExternalLibraryHandle(LibraryName: String): HINST;
     function GetExternalLibraryName(aLibHandle: HINST): String;
+    function GetExternalLibraryProcAddress(aLibHandle: HINST; aProcName: PChar): FARPROC;
   public
     constructor Create(aMem: TMemoryStream; const aName: String = ''); overload;
     constructor Create; overload;
@@ -146,14 +147,22 @@ begin
   begin
     fStream.Seek(0, soFromBeginning);
     FillChar(ImageNTHeaders, SizeOf(TImageNTHeaders), #0);
-    if fStream.Read(ImageDOSHeader, SizeOf(TImageDOSHeader)) <> SizeOf(TImageDOSHeader) then Exit;
-    if ImageDOSHeader.Signature <> $5A4D then Exit;
-    if fStream.Seek(ImageDOSHeader.LFAoffset, soFromBeginning) <> LONGINT(ImageDOSHeader.LFAoffset) then Exit;
-    if fStream.Read(ImageNTHeaders.Signature, SizeOf(LongWord)) <> SizeOf(LongWord) then Exit;
-    if ImageNTHeaders.Signature <> $00004550 then Exit;
-    if fStream.Read(ImageNTHeaders.FileHeader, SizeOf(TImageFileHeader)) <> SizeOf(TImageFileHeader) then Exit;
-    if ImageNTHeaders.FileHeader.Machine <> $14C then Exit;
-    if fStream.Read(ImageNTHeaders.OptionalHeader, ImageNTHeaders.FileHeader.SizeofOptionalHeader) <> ImageNTHeaders.FileHeader.SizeofOptionalHeader then Exit;
+    if fStream.Read(ImageDOSHeader, SizeOf(TImageDOSHeader)) <> SizeOf(TImageDOSHeader) then
+      Exit;
+    if ImageDOSHeader.Signature <> $5A4D then
+      Exit;
+    if fStream.Seek(ImageDOSHeader.LFAoffset, soFromBeginning) <> LONGINT(ImageDOSHeader.LFAoffset) then
+      Exit;
+    if fStream.Read(ImageNTHeaders.Signature, SizeOf(LongWord)) <> SizeOf(LongWord) then
+      Exit;
+    if ImageNTHeaders.Signature <> $00004550 then
+      Exit;
+    if fStream.Read(ImageNTHeaders.FileHeader, SizeOf(TImageFileHeader)) <> SizeOf(TImageFileHeader) then
+      Exit;
+    if ImageNTHeaders.FileHeader.Machine <> $14C then
+      Exit;
+    if fStream.Read(ImageNTHeaders.OptionalHeader, ImageNTHeaders.FileHeader.SizeofOptionalHeader) <> ImageNTHeaders.FileHeader.SizeofOptionalHeader then
+      Exit;
     Result := True;
   end;
 end;
@@ -169,12 +178,15 @@ begin
   Result := False;
   if ImageNTHeaders.FileHeader.NumberofSections > 0 then
   begin
-    fImageBase   := VirtualAlloc(nil, ImageNTHeaders.OptionalHeader.SizeofImage, MEM_RESERVE, PAGE_NOACCESS);
+    fImageBase  := VirtualAlloc(nil, ImageNTHeaders.OptionalHeader.SizeofImage, MEM_RESERVE, PAGE_READWRITE);
     SectionBase := VirtualAlloc(fImageBase, ImageNTHeaders.OptionalHeader.SizeofHeaders, MEM_COMMIT, PAGE_READWRITE);
+    if not Assigned(fImageBase) or not Assigned(SectionBase) then
+      raise EMlLibraryLoadError.Create('Could not allocate memory: ' + SysErrorMessage(GetLastError));
     OldPosition := fStream.Position;
     fStream.Seek(0, soFromBeginning);
     fStream.Read(SectionBase^, ImageNTHeaders.OptionalHeader.SizeofHeaders);
-    VirtualProtect(SectionBase, ImageNTHeaders.OptionalHeader.SizeofHeaders, PAGE_READONLY, OldProtect);
+    if not VirtualProtect(SectionBase, ImageNTHeaders.OptionalHeader.SizeofHeaders, PAGE_READONLY, OldProtect) then
+      raise EMlLibraryLoadError.Create('Could not protect memory: ' + SysErrorMessage(GetLastError));
     fStream.Seek(OldPosition, soFromBeginning);
     Result := True;
   end;
@@ -192,7 +204,8 @@ begin
   if ImageNTHeaders.FileHeader.NumberOfSections > 0 then
   begin
     GetMem(SectionHeaders, ImageNTHeaders.FileHeader.NumberOfSections * SizeOf(TImageSectionHeader));
-    if fStream.Read(SectionHeaders^, (ImageNTHeaders.FileHeader.NumberOfSections * SizeOf(TImageSectionHeader))) <> (ImageNTHeaders.FileHeader.NumberofSections * SIZEof(TImageSectionHeader)) then Exit;
+    if fStream.Read(SectionHeaders^, (ImageNTHeaders.FileHeader.NumberOfSections * SizeOf(TImageSectionHeader))) <> (ImageNTHeaders.FileHeader.NumberofSections * SIZEof(TImageSectionHeader)) then
+      Exit;
     SetLength(Sections, ImageNTHeaders.FileHeader.NumberOfSections);
     for I := 0 to ImageNTHeaders.FileHeader.NumberOfSections - 1 do
     begin
@@ -205,11 +218,14 @@ begin
       end;
       Sections[I].Characteristics := Section.Characteristics;
       Sections[I].Base := VirtualAlloc(Pointer(LongWord(Sections[I].RVA + LongWord(fImageBase))), Sections[I].Size, MEM_COMMIT, PAGE_READWRITE);
+      if not Assigned(Sections[I].Base) then
+        raise EMlLibraryLoadError.Create('Could not allocate section memory: ' + SysErrorMessage(GetLastError));
       FillChar(Sections[I].Base^, Sections[I].Size, #0);
       if Section.PointertoRawData <> 0 then
       begin
         fStream.Seek(Section.PointertoRawData, sofrombeginning);
-        if fStream.Read(Sections[I].Base^, Section.SizeofRawData) <> LONGINT(Section.SizeofRawData) then Exit;
+        if fStream.Read(Sections[I].Base^, Section.SizeofRawData) <> LONGINT(Section.SizeofRawData) then
+          Exit;
       end;
     end;
     FreeMem(SectionHeaders);
@@ -232,44 +248,40 @@ var
   RelocationPointer  : Pointer;
   RelocationType     : LongWord;
 begin
-  if ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress <> 0 then begin
-    Result := False;
+  Result := False;
+  if ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress <> 0 then
+  begin
     Relocations := ConvertRVAToPointer(ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
     Position := 0;
-    while Assigned(Relocations) and (Position < ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size) do begin
+    while Assigned(Relocations) and (Position < ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size) do
+    begin
       BaseRelocation := PImageBaseRelocation(Relocations);
       Base := ConvertRVAToPointer(BaseRelocation^.VirtualAddress);
-      if not Assigned(Base) then Exit;
-      NumberofRelocations := (BaseRelocation^.SizeofBlock - SIZEof(TImageBaseRelocation)) div SIZEof(WORD);
-      Relocation := Pointer(LongWord(LongWord(BaseRelocation) + SIZEof(TImageBaseRelocation)));
-      for RelocationCounter := 0 to NumberofRelocations - 1 do begin
+      if not Assigned(Base) then
+        Exit;
+      NumberofRelocations := (BaseRelocation^.SizeofBlock - SizeOf(TImageBaseRelocation)) div SizeOf(WORD);
+      Relocation := Pointer(LongWord(LongWord(BaseRelocation) + SizeOf(TImageBaseRelocation)));
+      for RelocationCounter := 0 to NumberofRelocations - 1 do
+      begin
         RelocationPointer := Pointer(LongWord(LongWord(Base) + (Relocation^[RelocationCounter] and $FFF)));
         RelocationType := Relocation^[RelocationCounter] shr 12;
         case RelocationType of
-          IMAGE_REL_BASED_ABSOLUTE: begin
-            end;
-          IMAGE_REL_BASED_HIGH: begin
-              PWord(RelocationPointer)^ := (LongWord(((LongWord(PWord(RelocationPointer)^ + LongWord(fImageBase) - ImageNTHeaders.OptionalHeader.ImageBase)))) shr 16) and $FFFF;
-            end;
-          IMAGE_REL_BASED_LOW: begin
-              PWord(RelocationPointer)^ := LongWord(((LongWord(PWord(RelocationPointer)^ + LongWord(fImageBase) - ImageNTHeaders.OptionalHeader.ImageBase)))) and $FFFF;
-            end;
-          IMAGE_REL_BASED_HIGHLOW: begin
-              PPointer(RelocationPointer)^ := Pointer((LongWord(LongWord(PPointer(RelocationPointer)^) + LongWord(fImageBase) - ImageNTHeaders.OptionalHeader.ImageBase)));
-            end;
-          IMAGE_REL_BASED_HIGHADJ: begin
-            // ???
-            end;
-          IMAGE_REL_BASED_MIPS_JMPADDR: begin
-            // Only for MIPS CPUs ;)
-            end;
+          IMAGE_REL_BASED_ABSOLUTE: ;
+          IMAGE_REL_BASED_HIGH:
+            PWord(RelocationPointer)^ := (LongWord(((LongWord(PWord(RelocationPointer)^ + LongWord(fImageBase) - ImageNTHeaders.OptionalHeader.ImageBase)))) shr 16) and $FFFF;
+          IMAGE_REL_BASED_LOW:
+            PWord(RelocationPointer)^ := LongWord(((LongWord(PWord(RelocationPointer)^ + LongWord(fImageBase) - ImageNTHeaders.OptionalHeader.ImageBase)))) and $FFFF;
+          IMAGE_REL_BASED_HIGHLOW:
+            PPointer(RelocationPointer)^ := Pointer((LongWord(LongWord(PPointer(RelocationPointer)^) + LongWord(fImageBase) - ImageNTHeaders.OptionalHeader.ImageBase)));
+          IMAGE_REL_BASED_HIGHADJ: ; // ???
+          IMAGE_REL_BASED_MIPS_JMPADDR: ; // Only for MIPS CPUs ;)
         end;
       end;
-      Relocations := Pointer(LongWord(LongWord(Relocations) + BaseRelocation^.SizeofBlock));
-      Inc(Position, BaseRelocation^.SizeofBlock);
+      Relocations := Pointer(LongWord(LongWord(Relocations) + BaseRelocation^.SizeOfBlock));
+      Inc(Position, BaseRelocation^.SizeOfBlock);
     end;
+    Result := True;
   end;
-  Result := True;
 end;
 
 /// Read the IMPORT sections (functions from other DLLs that this one uses)
@@ -281,39 +293,48 @@ var
   DLLImport        : PDLLImport;
   DLLfunctionImport: PDLLfunctionImport;
   functionPointer  : Pointer;
+  LibHandle        : HINST;
 begin
-  if ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress <> 0 then begin
+  if ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress <> 0 then
+  begin
     ImportDescriptor := ConvertRVAToPointer(ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
-    if Assigned(ImportDescriptor) then begin
+    if Assigned(ImportDescriptor) then
+    begin
       SetLength(ImportArray, 0);
-      while ImportDescriptor^.Name <> 0 do begin
+      while ImportDescriptor^.Name <> 0 do
+      begin
         Name := ConvertRVAToPointer(ImportDescriptor^.Name);
-        SetLength(ImportArray, length(ImportArray) + 1);
-        LoadExternalLibrary(Name);
-        DLLImport := @ImportArray[length(ImportArray) - 1];
+        SetLength(ImportArray, Length(ImportArray) + 1);
+        LibHandle := LoadExternalLibrary(Name);
+        DLLImport := @ImportArray[Length(ImportArray) - 1];
         DLLImport^.LibraryName   := Name;
-        DLLImport^.LibraryHandle := GetExternalLibraryHandle(Name);
+        DLLImport^.LibraryHandle := LibHandle;
         DLLImport^.Entries       := nil;
-        if ImportDescriptor^.TimeDateStamp = 0 then begin
-          ThunkData := ConvertRVAToPointer(ImportDescriptor^.FirstThunk);
-        end else begin
+        if ImportDescriptor^.TimeDateStamp = 0 then
+          ThunkData := ConvertRVAToPointer(ImportDescriptor^.FirstThunk)
+        else
           ThunkData := ConvertRVAToPointer(ImportDescriptor^.OriginalFirstThunk);
-        end;
-        while ThunkData^ <> 0 do begin
-          SetLength(DLLImport^.Entries, length(DLLImport^.Entries) + 1);
-          DLLfunctionImport := @DLLImport^.Entries[length(DLLImport^.Entries) - 1];
-          if (ThunkData^ and IMAGE_ORDINAL_FLAG32) <> 0 then begin
+        while ThunkData^ <> 0 do
+        begin
+          SetLength(DLLImport^.Entries, Length(DLLImport^.Entries) + 1);
+          DLLfunctionImport := @DLLImport^.Entries[Length(DLLImport^.Entries) - 1];
+          if (ThunkData^ and IMAGE_ORDINAL_FLAG32) <> 0 then
+          begin
             DLLfunctionImport^.NameOrID := niID;
             DLLfunctionImport^.ID       := ThunkData^ and IMAGE_ORDINAL_MASK32;
             DLLfunctionImport^.Name     := '';
-            functionPointer := GetProcAddress(DLLImport^.LibraryHandle, PCHAR(ThunkData^ and IMAGE_ORDINAL_MASK32));
-          end else begin
-            Name := ConvertRVAToPointer(LongWord(ThunkData^) + IMPORTED_NAME_ofFSET);
+            functionPointer := GetExternalLibraryProcAddress(DLLImport^.LibraryHandle, PCHAR(ThunkData^ and IMAGE_ORDINAL_MASK32));
+          end else
+          begin
+            Name := ConvertRVAToPointer(LongWord(ThunkData^) + IMPORTED_NAME_OFFSET);
             DLLfunctionImport^.NameOrID := niName;
             DLLfunctionImport^.ID       := 0;
             DLLfunctionImport^.Name     := Name;
-            functionPointer := GetProcAddress(DLLImport^.LibraryHandle, Name);
+            functionPointer := GetExternalLibraryProcAddress(DLLImport^.LibraryHandle, Name);
           end;
+
+          if not Assigned(functionPointer) then
+            raise EMlLibraryLoadError.CreateFmt('Could not find the address of imported function "%s", Library "%s"', [Name, DLLImport^.LibraryName]);
           PPointer(Thunkdata)^ := functionPointer;
           Inc(ThunkData);
         end;
@@ -333,41 +354,45 @@ var
    Flags: LongWord;
    OldProtect: LongWord;
 begin
-    Result := False;
-    if ImageNTHeaders.FileHeader.NumberofSections > 0 then begin
-      for I := 0 to ImageNTHeaders.FileHeader.NumberofSections - 1 do begin
-        Characteristics := Sections[I].Characteristics;
-        Flags := 0;
-        if (Characteristics and IMAGE_SCN_MEM_EXECUTE) <> 0 then begin
-          if (Characteristics and IMAGE_SCN_MEM_READ) <> 0 then begin
-            if (Characteristics and IMAGE_SCN_MEM_WRITE) <> 0 then begin
-              Flags := Flags or PAGE_EXECUTE_READWRITE;
-            end else begin
-              Flags := Flags or PAGE_EXECUTE_READ;
-            end;
-          end else if (Characteristics and IMAGE_SCN_MEM_WRITE) <> 0 then begin
-            Flags := Flags or PAGE_EXECUTE_WRITECOPY;
-          end else begin
+  Result := False;
+  if ImageNTHeaders.FileHeader.NumberofSections > 0 then
+  begin
+    for I := 0 to ImageNTHeaders.FileHeader.NumberofSections - 1 do
+    begin
+      Characteristics := Sections[I].Characteristics;
+      Flags := 0;
+      if (Characteristics and IMAGE_SCN_MEM_EXECUTE) <> 0 then
+      begin
+        if (Characteristics and IMAGE_SCN_MEM_READ) <> 0 then
+        begin
+          if (Characteristics and IMAGE_SCN_MEM_WRITE) <> 0 then
+            Flags := Flags or PAGE_EXECUTE_READWRITE
+          else
+            Flags := Flags or PAGE_EXECUTE_READ;
+        end else
+          if (Characteristics and IMAGE_SCN_MEM_WRITE) <> 0 then
+            Flags := Flags or PAGE_EXECUTE_WRITECOPY
+          else
             Flags := Flags or PAGE_EXECUTE;
-          end;
-        end else if (Characteristics and IMAGE_SCN_MEM_READ) <> 0 then begin
-          if (Characteristics and IMAGE_SCN_MEM_WRITE) <> 0 then begin
-            Flags := Flags or PAGE_READWRITE;
-          end else begin
-            Flags := Flags or PAGE_READONLY;
-          end;
-        end else if (Characteristics and IMAGE_SCN_MEM_WRITE) <> 0 then begin
-          Flags := Flags or PAGE_WRITECOPY;
+      end else if (Characteristics and IMAGE_SCN_MEM_READ) <> 0 then begin
+        if (Characteristics and IMAGE_SCN_MEM_WRITE) <> 0 then begin
+          Flags := Flags or PAGE_READWRITE;
         end else begin
-          Flags := Flags or PAGE_NOACCESS;
+          Flags := Flags or PAGE_READONLY;
         end;
-        if (Characteristics and IMAGE_SCN_MEM_NOT_CACHED) <> 0 then begin
-          Flags := Flags or PAGE_NOCACHE;
-        end;
-        VirtualProtect(Sections[I].Base, Sections[I].Size, Flags, OldProtect);
+      end else if (Characteristics and IMAGE_SCN_MEM_WRITE) <> 0 then begin
+        Flags := Flags or PAGE_WRITECOPY;
+      end else begin
+        Flags := Flags or PAGE_NOACCESS;
       end;
-      Result := True;
+      if (Characteristics and IMAGE_SCN_MEM_NOT_CACHED) <> 0 then begin
+        Flags := Flags or PAGE_NOCACHE;
+      end;
+      if not VirtualProtect(Sections[I].Base, Sections[I].Size, Flags, OldProtect) then
+        raise EMlLibraryLoadError.Create('Could not protect section memory');
     end;
+    Result := True;
+  end;
 end;
 
 /// Process the EXPORT section and get a list of all the functions this library exports
@@ -393,7 +418,7 @@ begin
     if Assigned(ExportDirectory) then
     begin
        ExportDirectorySize := ImageNTHeaders.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-       SETlength(ExportArray, ExportDirectory^.NumberofNames);
+       SetLength(ExportArray, ExportDirectory^.NumberofNames);
        for I := 0 to ExportDirectory^.NumberofNames - 1 do
        begin
           functionNamePointer  := ConvertRVAToPointer(LongWord(ExportDirectory^.AddressofNames));
@@ -426,17 +451,19 @@ begin
             else
             begin
               forwarderstring := forwarderCharPointer;
-              ExportArray[I].functionPointer := GetProcAddress(forwarderLibraryHandle, PCHAR(forwarderstring));
+              ExportArray[I].functionPointer := GetExternalLibraryProcAddress(forwarderLibraryHandle, PCHAR(forwarderstring));
             end;
           end
           else
           begin
             ExportArray[I].functionPointer := functionPointer;
           end;
-        end
-      end;
+          if not Assigned(ExportArray[I].functionPointer) then
+            raise EMlLibraryLoadError.CreateFmt('Can not find address for exported function: %s', [ExportArray[I].Name]);
+       end
     end;
-    Result := True;
+  end;
+  Result := True;
 end;
 
 /// Build the resource list with the help of TJclPeImage.ResourceList to be used when requested by
@@ -462,37 +489,84 @@ end;
 /// Check if an external dependency is already loaded and load it if not
 /// Fire the OnDependencyLoad event and load the library from drive or memory(or discard)
 /// depending on the event params
+/// The optionally passed MemStream can be freed after loading from it
 function TMlBaseLoader.LoadExternalLibrary(LibraryName: String): HINST;
 var
   LoadAction: TLoadAction;
-  MemStream: TMemoryStream;
-  Source: TExternalLibrarySource;
+  MemStream : TMemoryStream;
+  FreeStream: Boolean;
+  Source    : TExternalLibrarySource;
 begin
+  // Check the array of already loaded external libraries
   Result := GetExternalLibraryHandle(LibraryName);
 
+  // Not in the array, so we have to load it
   if Result = 0 then
   begin
-    LoadAction := laHardDisk;
-    MemStream := nil;
-    if Assigned(fOnDependencyLoad) then
-      fOnDependencyLoad(fName, LibraryName, LoadAction, MemStream);
+    // Check if the external is already loaded from disk or memory, but by another module
+    // In case it is found, load it again to increase the reference count to show that this module is using it
+    // Otherwise the other module that used the external might unload it, while it is used by this module
 
-    Source := lsHardDisk;
-    case LoadAction of
-      laHardDisk:
-        begin
-          Result := LoadLibrary(PChar(LibraryName));
-          Source := lsHardDisk;
+    // Check the standard API
+    Result := GetModuleHandle(PChar(LibraryName));
+    if Result <> 0 then
+    begin
+      Result := LoadLibrary(PChar(LibraryName));  // Inc the reference count
+      // Check the result again because there is a slight chance that the lib got deleted between the GetModuleHandle and LoadLibrary calls (very unlikely)
+      if Result = 0 then
+        raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
+          [LibraryName, SysErrorMessage(GetLastError)]);
+      Source := lsHardDisk;
+    end else
+    begin
+      // Check the Mem API
+      Result := GetModuleHandleMem(LibraryName);
+      if Result <> 0 then
+      begin
+        Result := LoadLibraryMem(nil, LibraryName); // No need to pass a mem stream. This will just increase the ref count
+        Source := lsMemStream;
+      end else
+      begin
+        // Not loaded from either Disk or Mem, so call the event and load the library
+        LoadAction := laHardDisk;
+        MemStream  := nil;
+        FreeStream := false;
+        if Assigned(fOnDependencyLoad) then
+          fOnDependencyLoad(fName, LibraryName, LoadAction, MemStream, FreeStream);
+
+        Source := lsHardDisk;
+        case LoadAction of
+          laHardDisk:
+            begin
+              // Load the external as a BPL or a DLL
+              // VG 140814: This needs more investigation. Original LoadPackage uses LoadLibrary to load dependencies
+              // but in our case this leads to items in the UnitHashBuckets array not being cleared and AVs
+              if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
+                Result := LoadPackage(LibraryName)
+              else
+                Result := LoadLibrary(PChar(LibraryName));
+              if Result = 0 then
+                raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
+                  [LibraryName, SysErrorMessage(GetLastError)]);
+              Source := lsHardDisk;
+            end;
+          laMemStream:
+            begin
+              // Load the external as a BPL or a DLL. See comment above
+              if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
+                Result := LoadPackageMem(MemStream, LibraryName)
+              else
+                Result := LoadLibraryMem(MemStream, LibraryName);
+              Source := lsMemStream;
+              if FreeStream then
+                FreeAndNil(MemStream);
+            end;
+          laDiscard:  //VG 010814: TODO: Is this really necessary? What usage would it have?
+            begin
+              Exit;
+            end;
         end;
-      laMemStream:
-        begin
-          Result := LoadLibraryMem(MemStream, LibraryName);
-          Source := lsMemStream;
-        end;
-      laDiscard:  //VG 010814: TODO: change the caller to know if the library was discarded
-        begin
-          Exit;
-        end;
+      end;
     end;
 
     SetLength(ExternalLibraryArray, Length(ExternalLibraryArray) + 1);
@@ -504,11 +578,13 @@ end;
 
 function TMlBaseLoader.GetExternalLibraryHandle(LibraryName: String): HINST;
 var
-  I : integer;
+  I : Integer;
 begin
   Result := 0;
-  for I := 0 to Length(ExternalLibraryArray) - 1 do begin
-    if ExternalLibraryArray[I].LibraryName = LibraryName then begin
+  for I := 0 to Length(ExternalLibraryArray) - 1 do
+  begin
+    if ExternalLibraryArray[I].LibraryName = LibraryName then
+    begin
       Result := ExternalLibraryArray[I].LibraryHandle;
       Exit;
     end;
@@ -517,7 +593,7 @@ end;
 
 function TMlBaseLoader.GetExternalLibraryName(aLibHandle: HINST): String;
 var
-  I : integer;
+  I : Integer;
 begin
   Result := '';
   for I := 0 to Length(ExternalLibraryArray) - 1 do
@@ -569,10 +645,7 @@ begin
   Create;
 
   // Auto load the stream if one is passed. Otherwise it has to be loaded manually with LoadFromStream
-  if Assigned(aMem) then
-    LoadFromStream(aMem, aName)
-  else
-    raise EMlLibraryLoadError.Create('Can not load a library from an unassigned TStream');
+  LoadFromStream(aMem, aName);
 end;
 
 constructor TMlBaseLoader.Create;
@@ -583,7 +656,7 @@ end;
 
 destructor TMlBaseLoader.Destroy;
 begin
-  if Assigned(MyDLLProc) then
+  if fLoaded then
     Unload;
   fJclImage.Free;
 
@@ -596,7 +669,14 @@ begin
   if fLoaded then
     raise EMlLibraryLoadError.Create('There is a loaded library. Please unload it first');
 
+  if not Assigned(aMem) then
+    raise EMlLibraryLoadError.Create('Can not load a library from an unassigned stream');
+
+  if aMem.Size = 0 then
+    raise EMlLibraryLoadError.Create('Can not load a library from an empty stream');
+
   fLoaded := False;
+  fName := ExtractFileName(aName); // Only the name is used, because this is compared later when loading external dependant libraries
 
   fStream := aMem;
   if fStream.Size > 0 then
@@ -618,8 +698,6 @@ begin
     Unload;
     raise EMlLibraryLoadError.Create('Library could not be loaded from memory');
   end;
-
-  fName := aName;
 end;
 
 /// Unload the library, free the memory and reset all the arrays with exports, imports, resources, etc
@@ -627,18 +705,17 @@ procedure TMlBaseLoader.Unload;
 var
   I, J: integer;
 begin
-  fLoaded := false;
-  fName   := '';
-  fHandle := 0;
+  // Reset the link of the JCL image to the loaded library
+  fJclImage.AttachLoadedModule(0);
 
   if Assigned(MyDLLProc) then
     MyDLLProc(Cardinal(fImageBase), DLL_PROCESS_DETACH, nil);
   MyDLLProc := nil;
 
-  for I := 0 to length(Sections) - 1 do begin
-    if Assigned(Sections[I].Base) then begin
+  for I := 0 to length(Sections) - 1 do
+  begin
+    if Assigned(Sections[I].Base) then
       VirtualFree(Sections[I].Base, 0, MEM_RELEASE);
-    end;
   end;
   SetLength(Sections, 0);
 
@@ -646,25 +723,34 @@ begin
   for I := 0 to Length(ExternalLibraryArray) - 1 do
   begin
     if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
-      FreeLibrary(ExternalLibraryArray[I].LibraryHandle)
+      Win32Check(FreeLibrary(ExternalLibraryArray[I].LibraryHandle))
     else
-      FreeLibraryMem(ExternalLibraryArray[I].LibraryHandle);
+    begin
+      if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
+        UnloadPackageMem(ExternalLibraryArray[I].LibraryHandle)
+      else
+        FreeLibraryMem(ExternalLibraryArray[I].LibraryHandle);
+    end;
   end;
   SetLength(ExternalLibraryArray, 0);
 
-  for I := 0 to length(ImportArray) - 1 do begin
-    for J := 0 to length(ImportArray[I].Entries) - 1 do begin
+  for I := 0 to Length(ImportArray) - 1 do
+  begin
+    for J := 0 to Length(ImportArray[I].Entries) - 1 do
       ImportArray[I].Entries[J].Name := '';
-    end;
     SetLength(ImportArray[I].Entries, 0);
   end;
   SetLength(ImportArray, 0);
 
-  for I := 0 to length(Exportarray) - 1 do
+  for I := 0 to Length(Exportarray) - 1 do
     Exportarray[I].Name := '';
   SetLength(Exportarray, 0);
 
   VirtualFree(fImageBase, 0, MEM_RELEASE);
+
+  fLoaded := false;
+  fName   := '';
+  fHandle := 0;
 end;
 
 /// Return a pointer to an exported function from the loaded image like GetProcAddress API
@@ -673,7 +759,7 @@ var
   I: Integer;
 begin
   Result := nil;
-  for I := 0 to length(ExportArray) - 1 do
+  for I := 0 to Length(ExportArray) - 1 do
     if ExportArray[I].Name = aName then
     begin
       Result := ExportArray[I].functionPointer;
@@ -698,6 +784,25 @@ begin
     while Resource.IsDirectory and (Resource.List.Count > 0) do
       Resource := Resource.List[0];
     Result := HRSRC(Resource.DataEntry);
+  end;
+end;
+
+/// Get a proc address, checking if the external lib is loaded from disk or mem
+function TMlBaseLoader.GetExternalLibraryProcAddress(aLibHandle: HINST; aProcName: PChar): FARPROC;
+var
+  I : Integer;
+begin
+  Result := nil;
+  for I := 0 to Length(ExternalLibraryArray) - 1 do
+  begin
+    if ExternalLibraryArray[I].LibraryHandle = aLibHandle then
+    begin
+      if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
+        Result := GetProcAddress(aLibHandle, aProcName)
+      else
+        Result := GetProcAddressMem(aLibHandle, aProcName);
+      Exit;
+    end;
   end;
 end;
 

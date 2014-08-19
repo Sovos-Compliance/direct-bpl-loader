@@ -16,7 +16,10 @@ type
   private
     fMemStream: TMemoryStream;
     fEventCalled: Boolean;
-    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream);
+    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream;
+        var aFreeStream: Boolean);
+    procedure TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
+        aMemStream: TMemoryStream; var aFreeStream: Boolean);
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -35,17 +38,27 @@ type
     procedure TestGetModuleFileNameMem;
     procedure TestGetModuleHandleMem;
 
+    procedure TestOnDependencyLoadEvent;
+
     procedure TestLoadPackageMem;
     procedure TestLoadPackageMemDuplicateFromDisk;
     procedure TestLoadPackageMemDuplicatePackageUnits;
-
-    procedure TestOnDependencyLoadEvent;
+    procedure TestLoadPackageMemRequiresB;
+    procedure TestLoadPackageMemRequiresBFromMem;
   end;
 
 implementation
 
+procedure TestLibraryManager.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
+    aMemStream: TMemoryStream; var aFreeStream: Boolean);
+begin
+  fEventCalled := true;
+end;
+
 procedure TestLibraryManager.SetUp;
 begin
+  SetCurrentDir('..\TestDLLs'); // So the test DLL/BPLs can be found
+
   UnloadAllLibrariesMem;  //VG: Reset the library loader and free the memory
   fMemStream := TMemoryStream.Create;
 end;
@@ -56,10 +69,23 @@ begin
   fMemStream.Free;
 end;
 
-procedure TestLibraryManager.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-    aMemStream: TMemoryStream);
+procedure TestLibraryManager.TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction:
+    TLoadAction; var aMemStream: TMemoryStream; var aFreeStream: Boolean);
+var
+  SourceFile: String;
 begin
-  fEventCalled := true;
+  if aDependentLib = ExtractFileName(BPL_PATH_A) then
+    SourceFile := BPL_PATH_A;
+  if aDependentLib = ExtractFileName(BPL_PATH_B) then
+    SourceFile := BPL_PATH_B;
+  if aDependentLib = ExtractFileName(BPL_PATH_C) then
+    SourceFile := BPL_PATH_C;
+  if SourceFile <> '' then
+  begin
+    aLoadAction := laMemStream;
+    aMemStream := TMemoryStream.Create;
+    aMemStream.LoadFromFile(SourceFile);
+  end;
 end;
 
 procedure TestLibraryManager.TestLoadLibraryMemValid;
@@ -103,8 +129,8 @@ var
   ReturnValue1, ReturnValue2: TLibHandle;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
-  ReturnValue1 := LoadLibraryMem(fMemStream, DLL_NAME);
-  ReturnValue2 := LoadLibraryMem(fMemStream, DLL_NAME);
+  ReturnValue1 := LoadLibraryMem(fMemStream, DLL_PATH);
+  ReturnValue2 := LoadLibraryMem(fMemStream, DLL_PATH);
   CheckEquals(ReturnValue1, ReturnValue2, 'Library handles should be the same because it is loaded once with RefCount 2');
 end;
 
@@ -119,14 +145,19 @@ begin
 end;
 
 procedure TestLibraryManager.TestGetProcAddressMemValid;
+type
+  TTestProc = function(A, B: Integer): Integer;
 var
   LibHandle: TLibHandle;
-  ReturnValue: Pointer;
+  TestProc: TTestProc;
+  A, B, C: Integer;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
   LibHandle := LoadLibraryMem(fMemStream);
-  ReturnValue := GetProcAddressMem(LibHandle, TEST_FUNCTION_NAME);
-  CheckMethodIsNotEmpty(ReturnValue);
+  @TestProc := GetProcAddressMem(LibHandle, TEST_FUNCTION_NAME);
+  A := 2; B := 3;
+  C := TestProc(A, B);
+  CheckEquals(C, A + B);
 end;
 
 procedure TestLibraryManager.TestGetProcAddressMemInvalidName;
@@ -170,8 +201,8 @@ var
   ReturnValue1, ReturnValue2: TLibHandle;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
-  ReturnValue1 := LoadLibraryMem(fMemStream, DLL_NAME);
-  ReturnValue2 := LoadLibraryMem(fMemStream, DLL_NAME);
+  ReturnValue1 := LoadLibraryMem(fMemStream, DLL_PATH);
+  ReturnValue2 := LoadLibraryMem(fMemStream, DLL_PATH);
   FreeLibraryMem(ReturnValue1);
   FreeLibraryMem(ReturnValue2);
   // The RefCount of the library should be 2 so it can be freed twice without raising an exception
@@ -183,9 +214,9 @@ var
   ReturnValue: String;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
-  LibHandle := LoadLibraryMem(fMemStream, DLL_NAME);
+  LibHandle := LoadLibraryMem(fMemStream, DLL_PATH);
   ReturnValue := GetModuleFileNameMem(LibHandle);
-  CheckEquals(ReturnValue, DLL_NAME);
+  CheckEquals(ReturnValue, ExtractFileName(DLL_PATH));
 end;
 
 procedure TestLibraryManager.TestGetModuleHandleMem;
@@ -194,18 +225,27 @@ var
   ReturnValue: TLibHandle;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
-  LibHandle := LoadLibraryMem(fMemStream, DLL_NAME);
-  ReturnValue := GetModuleHandleMem(DLL_NAME);
+  LibHandle := LoadLibraryMem(fMemStream, DLL_PATH);
+  ReturnValue := GetModuleHandleMem(DLL_PATH);
   CheckEquals(ReturnValue, LibHandle);
+end;
+
+procedure TestLibraryManager.TestOnDependencyLoadEvent;
+begin
+  MlOnDependencyLoad := TestEvent;
+  fEventCalled := false;
+  fMemStream.LoadFromFile(BPL_PATH_B);
+  LoadLibraryMem(fMemStream, BPL_PATH_B);
+  CheckTrue(fEventCalled, 'The OnDependencyLoad event was not called');
 end;
 
 procedure TestLibraryManager.TestLoadPackageMem;
 var
   TestClass: TPersistentClass;
 begin
-  fMemStream.LoadFromFile(BPL_PATH);
-  LoadPackageMem(fMemStream, BPL_NAME);
-  TestClass := GetClass('TButtonReload');
+  fMemStream.LoadFromFile(BPL_PATH_A);
+  LoadPackageMem(fMemStream, BPL_PATH_A);
+  TestClass := GetClass(TEST_CLASS_NAME_A);
   CheckNotNull(TObject(TestClass), 'The class could not be loaded from the BPL. Check if project is built with Runtime packages');
 end;
 
@@ -215,11 +255,11 @@ var
 begin
   // Try to load the same package from disk with the standard API and from memory with the Mem one
   // This should raise an exception and not be allowed
-  Lib := LoadPackage(BPL_PATH);
+  Lib := LoadPackage(BPL_PATH_A);
   try
-    fMemStream.LoadFromFile(BPL_PATH);
+    fMemStream.LoadFromFile(BPL_PATH_A);
     ExpectedException := EMlLibraryLoadError;
-    LoadPackageMem(fMemStream, BPL_NAME);
+    LoadPackageMem(fMemStream, BPL_PATH_A);
   finally
     UnloadPackage(Lib);
   end;
@@ -227,22 +267,35 @@ end;
 
 procedure TestLibraryManager.TestLoadPackageMemDuplicatePackageUnits;
 begin
-  // Try to load the same package from disk with the standard API and from memory with the Mem one
-  // This should raise an exception and not be allowed
+  // Try to load two packaged containing the same unit, which should raise an exception like done by LoadPackage
   ExpectedException := EPackageError;
-  fMemStream.LoadFromFile(BPL_PATH);
-  LoadPackageMem(fMemStream, BPL_PATH);
+  fMemStream.LoadFromFile(BPL_PATH_A);
+  LoadPackageMem(fMemStream, BPL_PATH_A);
   fMemStream.LoadFromFile(BPL_DUPLICATE_UNIT_PATH);
   LoadPackageMem(fMemStream, BPL_DUPLICATE_UNIT_PATH);
 end;
 
-procedure TestLibraryManager.TestOnDependencyLoadEvent;
+procedure TestLibraryManager.TestLoadPackageMemRequiresB;
+var
+  TestClass: TPersistentClass;
 begin
-  MlOnDependencyLoad := TestEvent;
-  fEventCalled := false;
-  fMemStream.LoadFromFile(DLL_PATH);
-  LoadLibraryMem(fMemStream, DLL_NAME);
-  CheckTrue(fEventCalled, 'The OnDependencyLoad event was not called');
+  fMemStream.LoadFromFile(BPL_PATH_C);
+  LoadPackageMem(fMemStream, BPL_PATH_C);
+  TestClass := GetClass(TEST_CLASS_NAME_C);
+  CheckNotNull(TObject(TestClass),
+    Format('The "%s" class could not be loaded from the BPL. Check if project is built with Runtime packages', [TEST_CLASS_NAME_C]));
+end;
+
+procedure TestLibraryManager.TestLoadPackageMemRequiresBFromMem;
+var
+  TestClass: TPersistentClass;
+begin
+  MlOnDependencyLoad := TestEventLoadActionFromMem;
+  fMemStream.LoadFromFile(BPL_PATH_C);
+  LoadPackageMem(fMemStream, BPL_PATH_C);
+  TestClass := GetClass(TEST_CLASS_NAME_C);
+  CheckNotNull(TObject(TestClass),
+    Format('The "%s" class could not be loaded from the BPL. Check if project is built with Runtime packages', [TEST_CLASS_NAME_C]));
 end;
 
 initialization

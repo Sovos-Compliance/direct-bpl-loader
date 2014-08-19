@@ -174,14 +174,15 @@ var
   MemStr: TMemoryStream;
   TestClass: TPersistentClass;
   Package: TLibHandle;
+  A, B, C: Integer;
 begin
   MemStr := TMemoryStream.Create;
   MemStr.LoadFromFile('TestDLLs\TestBPL.bpl');
   TestClass := nil;
-//  Package := LoadPackage('TestDLLs\TestBPL.bpl');
-  Package := LoadPackageMem(MemStr, 'TestBPL');
+  Package := LoadPackage('TestDLLs\TestBPL.bpl');
+//  Package := LoadPackageMem(MemStr, 'TestBPL');
   MemStr.Free;
-  TestClass := GetClass('TButtonReload');
+  TestClass := GetClass('TTestClass');
   if not Assigned(TestClass) then
     raise Exception.Create('Class not loaded');
 end;

@@ -1,0 +1,74 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{5c7c4fd7-cf90-4783-b8c4-fa92279c09ce}</ProjectGuid>
+  </PropertyGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <Projects Include="TestBplA.dproj" />
+    <Projects Include="TestBplB_ReqA.dproj" />
+    <Projects Include="TestBplC_ReqB.dproj" />
+    <Projects Include="TestBplDuplicateUnit.dproj" />
+    <Projects Include="TestDll.dproj" />
+  </ItemGroup>
+  <ProjectExtensions>
+    <Borland.Personality>Default.Personality</Borland.Personality>
+    <Borland.ProjectType />
+    <BorlandProject>
+<BorlandProject xmlns=""><Default.Personality></Default.Personality></BorlandProject></BorlandProject>
+  </ProjectExtensions>
+  <Target Name="TestBplA">
+    <MSBuild Projects="TestBplA.dproj" Targets="" />
+  </Target>
+  <Target Name="TestBplA:Clean">
+    <MSBuild Projects="TestBplA.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="TestBplA:Make">
+    <MSBuild Projects="TestBplA.dproj" Targets="Make" />
+  </Target>
+  <Target Name="TestBplDuplicateUnit">
+    <MSBuild Projects="TestBplDuplicateUnit.dproj" Targets="" />
+  </Target>
+  <Target Name="TestBplDuplicateUnit:Clean">
+    <MSBuild Projects="TestBplDuplicateUnit.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="TestBplDuplicateUnit:Make">
+    <MSBuild Projects="TestBplDuplicateUnit.dproj" Targets="Make" />
+  </Target>
+  <Target Name="TestBplB_ReqA">
+    <MSBuild Projects="TestBplB_ReqA.dproj" Targets="" />
+  </Target>
+  <Target Name="TestBplB_ReqA:Clean">
+    <MSBuild Projects="TestBplB_ReqA.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="TestBplB_ReqA:Make">
+    <MSBuild Projects="TestBplB_ReqA.dproj" Targets="Make" />
+  </Target>
+  <Target Name="TestBplC_ReqB">
+    <MSBuild Projects="TestBplC_ReqB.dproj" Targets="" />
+  </Target>
+  <Target Name="TestBplC_ReqB:Clean">
+    <MSBuild Projects="TestBplC_ReqB.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="TestBplC_ReqB:Make">
+    <MSBuild Projects="TestBplC_ReqB.dproj" Targets="Make" />
+  </Target>
+  <Target Name="TestDll">
+    <MSBuild Projects="TestDll.dproj" Targets="" />
+  </Target>
+  <Target Name="TestDll:Clean">
+    <MSBuild Projects="TestDll.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="TestDll:Make">
+    <MSBuild Projects="TestDll.dproj" Targets="Make" />
+  </Target>
+  <Target Name="Build">
+    <CallTarget Targets="TestBplA;TestBplDuplicateUnit;TestBplB_ReqA;TestBplC_ReqB;TestDll" />
+  </Target>
+  <Target Name="Clean">
+    <CallTarget Targets="TestBplA:Clean;TestBplDuplicateUnit:Clean;TestBplB_ReqA:Clean;TestBplC_ReqB:Clean;TestDll:Clean" />
+  </Target>
+  <Target Name="Make">
+    <CallTarget Targets="TestBplA:Make;TestBplDuplicateUnit:Make;TestBplB_ReqA:Make;TestBplC_ReqB:Make;TestDll:Make" />
+  </Target>
+  <Import Condition="Exists('$(MSBuildBinPath)\Borland.Group.Targets')" Project="$(MSBuildBinPath)\Borland.Group.Targets" />
+</Project>
