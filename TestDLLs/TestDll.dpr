@@ -17,21 +17,9 @@ library TestDll;
 //TESTBMP BITMAP TESTBMP.BMP    - 3112 bytes
 
 uses
-  SysUtils,
-  Windows,
-  Classes;
+  Windows;
 
 {$R *.res}
-
-procedure Start;
-begin
-  MessageBox(0 , 'Run direct', 'Start', MB_OK);
-end;
-
-procedure Stop;
-begin
-  MessageBox(0 , 'Run direct', 'Stop', MB_OK);
-end;
 
 procedure TestMessage (Sender : TObject);
 begin
@@ -43,17 +31,16 @@ begin
   Result := A + B;
 end;
 
-
 procedure DllMain(reason: integer) ;
 begin
     case reason of
       DLL_PROCESS_ATTACH:
       begin
-//         Start;
+
       end;
       DLL_PROCESS_DETACH:
       begin
-//         Stop;
+
       end;
     end;
 end;

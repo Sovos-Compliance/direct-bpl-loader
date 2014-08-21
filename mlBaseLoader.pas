@@ -64,7 +64,7 @@ type
 
     // Helper functions
     function ConvertRVAToPointer(RVA: LongWord): Pointer;
-    function ParseStringToNumber(Astring: string): LongWord;
+    function ParseStringToNumber(aString: String): LongWord;
 
     // DLL parsing function
     function ReadImageHeaders  : Boolean;
@@ -123,17 +123,15 @@ begin
   end;
 end;
 
-function TMlBaseLoader.ParseStringToNumber(Astring: string): LongWord;
+function TMlBaseLoader.ParseStringToNumber(aString: String): LongWord;
 var
   CharCounter: Integer;
 begin
   Result := 0;
-  for CharCounter := 0 to length(Astring) - 1 do
+  for CharCounter := 0 to length(aString) - 1 do
   begin
-    if Astring[CharCounter] in ['0'..'9'] then
-    begin
-      Result := (Result * 10) + BYTE(BYTE(Astring[CharCounter]) - BYTE('0'));
-    end
+    if aString[CharCounter] in ['0'..'9'] then
+      Result := (Result * 10) + BYTE(BYTE(aString[CharCounter]) - BYTE('0'))
     else
       Exit;
   end;

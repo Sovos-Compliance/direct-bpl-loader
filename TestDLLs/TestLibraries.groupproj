@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup />
   <ItemGroup>
+    <Projects Include="BaseBPL.dproj" />
     <Projects Include="TestBplA.dproj" />
     <Projects Include="TestBplB_ReqA.dproj" />
     <Projects Include="TestBplC_ReqB.dproj" />
@@ -16,6 +17,15 @@
     <BorlandProject>
 <BorlandProject xmlns=""><Default.Personality></Default.Personality></BorlandProject></BorlandProject>
   </ProjectExtensions>
+  <Target Name="BaseBPL">
+    <MSBuild Projects="BaseBPL.dproj" Targets="" />
+  </Target>
+  <Target Name="BaseBPL:Clean">
+    <MSBuild Projects="BaseBPL.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="BaseBPL:Make">
+    <MSBuild Projects="BaseBPL.dproj" Targets="Make" />
+  </Target>
   <Target Name="TestBplA">
     <MSBuild Projects="TestBplA.dproj" Targets="" />
   </Target>
@@ -62,13 +72,13 @@
     <MSBuild Projects="TestDll.dproj" Targets="Make" />
   </Target>
   <Target Name="Build">
-    <CallTarget Targets="TestBplA;TestBplDuplicateUnit;TestBplB_ReqA;TestBplC_ReqB;TestDll" />
+    <CallTarget Targets="BaseBPL;TestBplA;TestBplDuplicateUnit;TestBplB_ReqA;TestBplC_ReqB;TestDll" />
   </Target>
   <Target Name="Clean">
-    <CallTarget Targets="TestBplA:Clean;TestBplDuplicateUnit:Clean;TestBplB_ReqA:Clean;TestBplC_ReqB:Clean;TestDll:Clean" />
+    <CallTarget Targets="BaseBPL:Clean;TestBplA:Clean;TestBplDuplicateUnit:Clean;TestBplB_ReqA:Clean;TestBplC_ReqB:Clean;TestDll:Clean" />
   </Target>
   <Target Name="Make">
-    <CallTarget Targets="TestBplA:Make;TestBplDuplicateUnit:Make;TestBplB_ReqA:Make;TestBplC_ReqB:Make;TestDll:Make" />
+    <CallTarget Targets="BaseBPL:Make;TestBplA:Make;TestBplDuplicateUnit:Make;TestBplB_ReqA:Make;TestBplC_ReqB:Make;TestDll:Make" />
   </Target>
   <Import Condition="Exists('$(MSBuildBinPath)\Borland.Group.Targets')" Project="$(MSBuildBinPath)\Borland.Group.Targets" />
 </Project>

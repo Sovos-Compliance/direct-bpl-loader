@@ -1,4 +1,5 @@
-﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectGuid>{70addafa-31af-4ae4-a749-1eabf052d4b3}</ProjectGuid>
     <MainSource>TestBplA.dpk</MainSource>
@@ -23,6 +24,7 @@
     <DCC_ObjPath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug</DCC_ObjPath>
     <DCC_IncludePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug</DCC_IncludePath>
     <DCC_Optimize>False</DCC_Optimize>
+    <DCC_Define>RELEASE</DCC_Define>
   </PropertyGroup>
   <ProjectExtensions>
     <Borland.Personality>Delphi.Personality</Borland.Personality>
@@ -35,8 +37,8 @@
     <DelphiCompile Include="TestBplA.dpk">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
-    <DCCReference Include="C:\ProgramData\Microsoft\Windows\Start Menu\Programs\CodeGear RAD Studio\rtl.dcp" />
-    <DCCReference Include="C:\ProgramData\Microsoft\Windows\Start Menu\Programs\CodeGear RAD Studio\vcl.dcp" />
+    <DCCReference Include="$(SystemRoot)\system32\rtl.dcp" />
     <DCCReference Include="TestClassA.pas" />
+    <DCCReference Include="TestInterfaces.pas" />
   </ItemGroup>
 </Project>

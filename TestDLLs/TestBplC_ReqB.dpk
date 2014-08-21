@@ -27,7 +27,6 @@ package TestBplC_ReqB;
 
 requires
   rtl,
-  vcl,
   TestBplB_ReqA;
 
 contains
