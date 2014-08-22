@@ -52,6 +52,7 @@
     <DCCReference Include="..\mlLibraryManager.pas" />
     <DCCReference Include="..\mlPEHeaders.pas" />
     <DCCReference Include="..\mlTypes.pas" />
+    <DCCReference Include="..\TestDLLs\TestInterfaces.pas" />
     <DCCReference Include="TestConstants.pas" />
     <DCCReference Include="TestmlBaseLoader.pas" />
     <DCCReference Include="TestmlLibraryManager.pas" />

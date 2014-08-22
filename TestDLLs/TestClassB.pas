@@ -23,4 +23,7 @@ implementation
 initialization
   RegisterClass(TTestClassB);
 
+finalization
+  UnRegisterClass(TTestClassB);
+
 end.

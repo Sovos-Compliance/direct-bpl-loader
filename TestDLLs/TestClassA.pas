@@ -38,4 +38,7 @@ end;
 initialization
   RegisterClass(TTestClassA);
 
+finalization
+  UnRegisterClass(TTestClassA);
+
 end.

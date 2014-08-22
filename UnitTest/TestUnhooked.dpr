@@ -26,7 +26,8 @@ uses
   TestmlLibraryManager in 'TestmlLibraryManager.pas',
   TestConstants in 'TestConstants.pas',
   mlTypes in '..\mlTypes.pas',
-  mlBPLLoader in '..\mlBPLLoader.pas';
+  mlBPLLoader in '..\mlBPLLoader.pas',
+  TestInterfaces in '..\TestDLLs\TestInterfaces.pas';
 
 {$R *.RES}
 

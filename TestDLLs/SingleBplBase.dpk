@@ -1,4 +1,4 @@
-package TestBplA;
+package SingleBplBase;
 
 {$R *.res}
 {$ALIGN 8}
@@ -11,7 +11,7 @@ package TestBplA;
 {$LOCALSYMBOLS ON}
 {$LONGSTRINGS ON}
 {$OPENSTRINGS ON}
-{$OPTIMIZATION OFF}
+{$OPTIMIZATION ON}
 {$OVERFLOWCHECKS OFF}
 {$RANGECHECKS OFF}
 {$REFERENCEINFO ON}
@@ -23,13 +23,8 @@ package TestBplA;
 {$MINENUMSIZE 1}
 {$IMAGEBASE $400000}
 {$IMPLICITBUILD OFF}
-{$DEFINE DEBUG}
-
-requires
-  rtl;
 
 contains
-  TestClassA in 'TestClassA.pas',
-  TestInterfaces in 'TestInterfaces.pas';
+  SingleBplBaseMain in 'SingleBplBaseMain.pas';
 
 end.
