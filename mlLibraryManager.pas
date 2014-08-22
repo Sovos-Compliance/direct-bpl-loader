@@ -31,7 +31,7 @@ procedure FreeLibraryMem(hModule: TLibHandle);
 function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
 function FindResourceMem(hModule: TLibHandle; lpName, lpType: PChar): HRSRC;
 function LoadResourceMem(hModule: TLibHandle; hResInfo: HRSRC): HGLOBAL;
-function SizeofResourceMem(hModule: TLibHandle; hResInfo: HRSRC): DWORD;
+function SizeOfResourceMem(hModule: TLibHandle; hResInfo: HRSRC): DWORD;
 function GetModuleFileNameMem(hModule: TLibHandle): String;
 function GetModuleHandleMem(ModuleName: String): TLibHandle;
 
@@ -68,16 +68,17 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    function LoadLibrary(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
-    procedure FreeLibrary(aHandle: TLibHandle);
-    function GetProcAddress(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC;
-    function FindResource(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC;
-    function LoadResource(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL;
-    function SizeofResource(aHandle: TLibHandle; hResInfo: HRSRC): DWORD;
-    function GetModuleFileName(aHandle: TLibHandle): String;
-    function GetModuleHandle(aModuleName: String): TLibHandle;
-    function LoadPackage(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc): TLibHandle;
-    procedure UnloadPackage(aHandle: TLibHandle);
+    function LoadLibraryMl(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
+    procedure FreeLibraryMl(aHandle: TLibHandle);
+    function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC;
+    function FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC;
+    function LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL;
+    function SizeOfResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): DWORD;
+    function GetModuleFileNameMl(aHandle: TLibHandle): String;
+    function GetModuleHandleMl(aModuleName: String): TLibHandle;
+    function LoadPackageMl(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc):
+        TLibHandle;
+    procedure UnloadPackageMl(aHandle: TLibHandle);
   end;
 
 var
@@ -87,42 +88,42 @@ var
 
 function LoadLibraryMem(aSource: TMemoryStream; aLibFileName: String = ''): TLibHandle;
 begin
-  Result := Manager.LoadLibrary(aSource, aLibFileName);
+  Result := Manager.LoadLibraryMl(aSource, aLibFileName);
 end;
 
 procedure FreeLibraryMem(hModule: TLibHandle);
 begin
-  Manager.FreeLibrary(hModule);
+  Manager.FreeLibraryMl(hModule);
 end;
 
 function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
 begin
-  Result := Manager.GetProcAddress(hModule, lpProcName);
+  Result := Manager.GetProcAddressMl(hModule, lpProcName);
 end;
 
 function FindResourceMem(hModule: TLibHandle; lpName, lpType: PChar): HRSRC;
 begin
-  Result := Manager.FindResource(hModule, lpName, lpType);
+  Result := Manager.FindResourceMl(hModule, lpName, lpType);
 end;
 
 function LoadResourceMem(hModule: TLibHandle; hResInfo: HRSRC): HGLOBAL;
 begin
-  Result := Manager.LoadResource(hModule, hResInfo);
+  Result := Manager.LoadResourceMl(hModule, hResInfo);
 end;
 
-function SizeofResourceMem(hModule: TLibHandle; hResInfo: HRSRC): DWORD;
+function SizeOfResourceMem(hModule: TLibHandle; hResInfo: HRSRC): DWORD;
 begin
-  Result := Manager.SizeofResource(hModule, hResInfo);
+  Result := Manager.SizeOfResourceMl(hModule, hResInfo);
 end;
 
 function GetModuleFileNameMem(hModule: TLibHandle): String;
 begin
-  Result := Manager.GetModuleFileName(hModule);
+  Result := Manager.GetModuleFileNameMl(hModule);
 end;
 
 function GetModuleHandleMem(ModuleName: String): TLibHandle;
 begin
-  Result := Manager.GetModuleHandle(ModuleName);
+  Result := Manager.GetModuleHandleMl(ModuleName);
 end;
 
 { BPL Library memory functions }
@@ -130,12 +131,12 @@ end;
 function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
     TLibHandle;
 begin
-  Result := Manager.LoadPackage(aSource, aLibFileName, aValidatePackage);
+  Result := Manager.LoadPackageMl(aSource, aLibFileName, aValidatePackage);
 end;
 
 procedure UnloadPackageMem(Module: TLibHandle);
 begin
-  Manager.UnloadPackage(Module);
+  Manager.UnloadPackageMl(Module);
 end;
 
 //TODO VG 090714: This method is used only to reset the manager during unit testing. Can be removed
@@ -233,7 +234,7 @@ end;
 
 /// LoadLibraryMem: aName is compared to the loaded libraries and if found the
 /// reference count is incremented. If the aName is empty or not found the library is loaded
-function TMlLibraryManager.LoadLibrary(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
+function TMlLibraryManager.LoadLibraryMl(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
 var
   Loader: TMlBaseLoader;
   Index: Integer;
@@ -270,7 +271,7 @@ begin
 end;
 
 /// Decrement the RefCount of a library on each call and unload/free it if the count reaches 0
-procedure TMlLibraryManager.FreeLibrary(aHandle: TLibHandle);
+procedure TMlLibraryManager.FreeLibraryMl(aHandle: TLibHandle);
 var
   Index: Integer;
   Lib: TMlBaseLoader;
@@ -295,7 +296,7 @@ begin
   end;
 end;
 
-function TMlLibraryManager.GetProcAddress(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC;
+function TMlLibraryManager.GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC;
 var
   Index: Integer;
 begin
@@ -306,40 +307,40 @@ begin
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
-function TMlLibraryManager.FindResource(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC;
+function TMlLibraryManager.FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC;
 var
   Index: Integer;
 begin
   Index := LibraryIndexByHandle(aHandle);
   if Index <> -1 then
-    Result := Libs[Index].FindResource(lpName, lpType)
+    Result := Libs[Index].FindResourceMl(lpName, lpType)
   else
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
-function TMlLibraryManager.LoadResource(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL;
+function TMlLibraryManager.LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL;
 var
   Index: Integer;
 begin
   Index := LibraryIndexByHandle(aHandle);
   if Index <> -1 then
-    Result := Libs[Index].LoadResource(hResInfo)
+    Result := Libs[Index].LoadResourceMl(hResInfo)
   else
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
-function TMlLibraryManager.SizeofResource(aHandle: TLibHandle; hResInfo: HRSRC): DWORD;
+function TMlLibraryManager.SizeOfResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): DWORD;
 var
   Index: Integer;
 begin
   Index := LibraryIndexByHandle(aHandle);
   if Index <> -1 then
-    Result := Libs[Index].SizeOfResource(hResInfo)
+    Result := Libs[Index].SizeOfResourceMl(hResInfo)
   else
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
-function TMlLibraryManager.GetModuleFileName(aHandle: TLibHandle): String;
+function TMlLibraryManager.GetModuleFileNameMl(aHandle: TLibHandle): String;
 var
   Index: Integer;
 begin
@@ -350,7 +351,7 @@ begin
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
-function TMlLibraryManager.GetModuleHandle(aModuleName: String): TLibHandle;
+function TMlLibraryManager.GetModuleHandleMl(aModuleName: String): TLibHandle;
 var
   Index: Integer;
 begin
@@ -363,7 +364,7 @@ end;
 
 /// Function to emulate the LoadPackage from a stream
 /// Source is taken from the original Delphi RTL functions LoadPackage, InitializePackage in SysUtils
-function TMlLibraryManager.LoadPackage(aSource: TMemoryStream; aLibFileName: String; aValidatePackage:
+function TMlLibraryManager.LoadPackageMl(aSource: TMemoryStream; aLibFileName: String; aValidatePackage:
     TValidatePackageProc): TLibHandle;
 var
   Loader: TBPLLoader;
@@ -400,7 +401,7 @@ begin
   end;
 end;
 
-procedure TMlLibraryManager.UnloadPackage(aHandle: TLibHandle);
+procedure TMlLibraryManager.UnloadPackageMl(aHandle: TLibHandle);
 var
   Index: Integer;
   Lib: TBPLLoader;

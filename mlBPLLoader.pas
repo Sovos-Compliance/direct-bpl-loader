@@ -157,8 +157,8 @@ begin
   try
     if aSelfCheck then
     begin
-      ResInfo := FindResource('PACKAGEINFO', RT_RCDATA);
-      Data := LoadResource(ResInfo);
+      ResInfo := FindResourceMl('PACKAGEINFO', RT_RCDATA);
+      Data := LoadResourceMl(ResInfo);
     end else
     begin
       ResInfo := Windows.FindResource(Module, 'PACKAGEINFO', RT_RCDATA);

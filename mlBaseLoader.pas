@@ -92,9 +92,9 @@ type
     procedure Unload;
 
     function GetFunctionAddress(aName: String): Pointer;
-    function FindResource(lpName, lpType: PChar): HRSRC;
-    function LoadResource(hResInfo: HRSRC): HGLOBAL;
-    function SizeOfResource(hResInfo: HRSRC): DWORD;
+    function FindResourceMl(lpName, lpType: PChar): HRSRC;
+    function LoadResourceMl(hResInfo: HRSRC): HGLOBAL;
+    function SizeOfResourceMl(hResInfo: HRSRC): DWORD;
 
     property Loaded          : Boolean                      read fLoaded           write fLoaded;
     property ImageBase       : Pointer                      read fImageBase;
@@ -770,7 +770,7 @@ end;
 /// Find the resource requested and return a pointer to its data structure
 /// The HRSRC result is just a pointer to a IMAGE_RESOURCE_DATA_ENTRY record passed to
 /// LoadResource and SizeOfResource
-function TMlBaseLoader.FindResource(lpName, lpType: PChar): HRSRC;
+function TMlBaseLoader.FindResourceMl(lpName, lpType: PChar): HRSRC;
 var
   Resource: TJclPeResourceItem;
 begin
@@ -805,7 +805,7 @@ begin
 end;
 
 /// Return a pointer to the actual resource data in memory
-function TMlBaseLoader.LoadResource(hResInfo: HRSRC): HGLOBAL;
+function TMlBaseLoader.LoadResourceMl(hResInfo: HRSRC): HGLOBAL;
 begin
   if IsValidResHandle(hResInfo) then
     Result := HGLOBAL(fJclImage.RvaToVa(PImageResourceDataEntry(hResInfo).OffsetToData))
@@ -814,7 +814,7 @@ begin
 end;
 
 /// Calculate the size of the resource passed
-function TMlBaseLoader.SizeOfResource(hResInfo: HRSRC): DWORD;
+function TMlBaseLoader.SizeOfResourceMl(hResInfo: HRSRC): DWORD;
 begin
   if IsValidResHandle(hResInfo) then
     Result := PImageResourceDataEntry(hResInfo).Size
