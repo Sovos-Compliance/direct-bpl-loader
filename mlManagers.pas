@@ -4,15 +4,18 @@
 *  Description:                                                                *
 *  Unit providing several methods to load and use a DLL/BPL library from       *
 *  memory instead of a file. The methods are named after the original WinAPIs  *
-*  like LoadLibrary, FreeLibrary, GetProcAddress, etc, but with a Mem suffix.  *
+*  like LoadLibrary, FreeLibrary, GetProcAddress, etc, but with a Mem suffix   *
+*  for the Unhooked version and without a suffix for the Hooked version.       *
 *  Same for LoadPackage and UnloadPackage for working with BPLs                *
-*  The underlying functionality is provided by the hidden TMlLibraryManager    *
+*  The underlying functionality is provided by the TMlLibraryManager           *
 *  class that manages the loading, unloading, reference counting, generation of*
 *  handles, etc. It uses the TMlBaseLoader for the loading/unloading of libs.  *
 *                                                                              *
 *******************************************************************************}
 
-unit mlLibraryManager;
+{$I APIMODE.INC}
+
+unit mlManagers;
 
 interface
 
@@ -25,39 +28,12 @@ uses
   mlBaseLoader,
   mlBPLLoader;
 
-// DLL loading functions. They only forward the calls to the TMlLibraryManager instance
-function LoadLibraryMem(aSource: TMemoryStream; aLibFileName: String = ''): TLibHandle;
-procedure FreeLibraryMem(hModule: TLibHandle);
-function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
-function FindResourceMem(hModule: TLibHandle; lpName, lpType: PChar): HRSRC;
-function LoadResourceMem(hModule: TLibHandle; hResInfo: HRSRC): HGLOBAL;
-function SizeOfResourceMem(hModule: TLibHandle; hResInfo: HRSRC): DWORD;
-function GetModuleFileNameMem(hModule: TLibHandle): String;
-function GetModuleHandleMem(ModuleName: String): TLibHandle;
-
-/// BPL loading functions
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
-    TLibHandle; overload;
-procedure UnloadPackageMem(Module: TLibHandle);
-
-//TODO VG 090714: This method is used only to reset the loader during unit testing. Can be removed
-{$IFDEF _CONSOLE_TESTRUNNER}
-procedure UnloadAllLibrariesMem;
-{$ENDIF}
-
-var
-  MlOnDependencyLoad: TMlLoadDependentLibraryEvent;
-
-implementation
-
-const
-  BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begins
-
 type
   TMlLibraryManager = class
   private
     fCrit: TRTLCriticalSection;
     fLibs: TList;
+    fOnDependencyLoad: TMlLoadDependentLibraryEvent;
     function GetLibs(aIndex: Integer): TMlBaseLoader;
     function GetNewHandle: TLibHandle;
     function LibraryIndexByHandle(aHandle: TLibHandle): Integer;
@@ -79,74 +55,20 @@ type
     function LoadPackageMl(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc):
         TLibHandle;
     procedure UnloadPackageMl(aHandle: TLibHandle);
+    property OnDependencyLoad: TMlLoadDependentLibraryEvent read fOnDependencyLoad write fOnDependencyLoad;
   end;
 
-var
-  Manager: TMlLibraryManager;
+  TMlHookedLibraryManager = class(TMlLibraryManager)
+    private
 
-{ DLL Library memory functions }
+    public
 
-function LoadLibraryMem(aSource: TMemoryStream; aLibFileName: String = ''): TLibHandle;
-begin
-  Result := Manager.LoadLibraryMl(aSource, aLibFileName);
-end;
+  end;
 
-procedure FreeLibraryMem(hModule: TLibHandle);
-begin
-  Manager.FreeLibraryMl(hModule);
-end;
+implementation
 
-function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
-begin
-  Result := Manager.GetProcAddressMl(hModule, lpProcName);
-end;
-
-function FindResourceMem(hModule: TLibHandle; lpName, lpType: PChar): HRSRC;
-begin
-  Result := Manager.FindResourceMl(hModule, lpName, lpType);
-end;
-
-function LoadResourceMem(hModule: TLibHandle; hResInfo: HRSRC): HGLOBAL;
-begin
-  Result := Manager.LoadResourceMl(hModule, hResInfo);
-end;
-
-function SizeOfResourceMem(hModule: TLibHandle; hResInfo: HRSRC): DWORD;
-begin
-  Result := Manager.SizeOfResourceMl(hModule, hResInfo);
-end;
-
-function GetModuleFileNameMem(hModule: TLibHandle): String;
-begin
-  Result := Manager.GetModuleFileNameMl(hModule);
-end;
-
-function GetModuleHandleMem(ModuleName: String): TLibHandle;
-begin
-  Result := Manager.GetModuleHandleMl(ModuleName);
-end;
-
-{ BPL Library memory functions }
-
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
-    TLibHandle;
-begin
-  Result := Manager.LoadPackageMl(aSource, aLibFileName, aValidatePackage);
-end;
-
-procedure UnloadPackageMem(Module: TLibHandle);
-begin
-  Manager.UnloadPackageMl(Module);
-end;
-
-//TODO VG 090714: This method is used only to reset the manager during unit testing. Can be removed
-{$IFDEF _CONSOLE_TESTRUNNER}
-procedure UnloadAllLibrariesMem;
-begin
-  Manager.Free;
-  Manager := TMlLibraryManager.Create;
-end;
-{$ENDIF}
+const
+  BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begins
 
 { TMlLibraryManager }
 
@@ -212,8 +134,8 @@ end;
 procedure TMlLibraryManager.DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
     aMemStream: TMemoryStream; var aFreeStream: Boolean);
 begin
-  if Assigned(MlOnDependencyLoad) then
-    MlOnDependencyLoad(aLibName, aDependentLib, aLoadAction, aMemStream, aFreeStream);
+  if Assigned(fOnDependencyLoad) then
+    fOnDependencyLoad(aLibName, aDependentLib, aLoadAction, aMemStream, aFreeStream);
 end;
 
 constructor TMlLibraryManager.Create;
@@ -226,7 +148,7 @@ end;
 destructor TMlLibraryManager.Destroy;
 begin
   while fLibs.Count > 0 do
-    FreeLibrary(Libs[0].Handle);
+    FreeLibraryMl(Libs[0].Handle);
   fLibs.Free;
   DeleteCriticalSection(fCrit);
   inherited;
@@ -425,11 +347,5 @@ begin
     LeaveCriticalSection(fCrit);
   end;
 end;
-
-initialization
-  Manager := TMlLibraryManager.Create;
-
-finalization
-  Manager.Free;
 
 end.

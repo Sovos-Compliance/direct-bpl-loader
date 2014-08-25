@@ -49,10 +49,10 @@
     </DelphiCompile>
     <DCCReference Include="..\mlBaseLoader.pas" />
     <DCCReference Include="..\mlBPLLoader.pas" />
-    <DCCReference Include="..\mlLibraryManager.pas" />
+    <DCCReference Include="..\mlLibrary.pas" />
+    <DCCReference Include="..\mlManagers.pas" />
     <DCCReference Include="..\mlPEHeaders.pas" />
     <DCCReference Include="..\mlTypes.pas" />
-    <DCCReference Include="..\TestDLLs\TestInterfaces.pas" />
     <DCCReference Include="TestConstants.pas" />
     <DCCReference Include="TestmlBaseLoader.pas" />
     <DCCReference Include="TestmlLibraryManager.pas" />

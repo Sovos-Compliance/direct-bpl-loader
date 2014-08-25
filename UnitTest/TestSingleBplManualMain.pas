@@ -6,7 +6,7 @@ uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls,
   TestConstants,
-  mlLibraryManager,
+  mlLibrary,
   mlTypes;
 
 type

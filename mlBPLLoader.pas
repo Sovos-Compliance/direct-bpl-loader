@@ -13,6 +13,8 @@
 *  http://hallvards.blogspot.com/2005/08/ultimate-delphi-ide-start-up-hack.html*
 *******************************************************************************}
 
+{$I APIMODE.INC}
+
 unit mlBPLLoader;
 
 interface
@@ -92,7 +94,7 @@ type
 implementation
 
 uses
-  mlLibraryManager;
+  mlLibrary;
 
 var
   SysInitHC: Cardinal;
@@ -166,8 +168,13 @@ begin
         Data := Windows.LoadResource(Module, ResInfo)
       else
       begin
+{$IFDEF MLHOOKED}
+        ResInfo := mlLibrary.FindResource(Module, 'PACKAGEINFO', RT_RCDATA);
+        Data := mlLibrary.LoadResource(Module, ResInfo);
+{$ELSE}
         ResInfo := FindResourceMem(Module, 'PACKAGEINFO', RT_RCDATA);
         Data := LoadResourceMem(Module, ResInfo);
+{$ENDIF MLHOOKED}
       end;
     end;
   except
@@ -186,6 +193,9 @@ var
       ModuleName: string; var UnitPackage: string; ModuleHashCode: Cardinal): Boolean;
   var
     HashEntry: PUnitHashEntry;
+{$IFDEF MLHOOKED}
+    Buf: array[0..MAX_PATH + 1] of Char;
+{$ENDIF MLHOOKED}
   begin
     if ((HashCode <> SysInitHC) or (StrIComp(UnitName, 'SysInit') <> 0)) and
     ((HashCode <> ModuleHashCode) or (StrIComp(UnitName, PChar(ModuleName)) <> 0)) then
@@ -200,7 +210,14 @@ var
           UnitPackage := ChangeFileExt(ExtractFileName(GetModuleName(HMODULE(HashEntry.LibModule.Instance))), '');
           if UnitPackage = '' then
             try
+{$IFDEF MLHOOKED}
+              if mlLibrary.GetModuleFileName(HashEntry.LibModule.Instance, Buf, Length(Buf)) <> 0 then
+                UnitPackage := Buf
+              else
+                UnitPackage := '';
+{$ELSE}
               UnitPackage := ChangeFileExt(ExtractFileName(GetModuleFileNameMem(TLibHandle(HashEntry.LibModule.Instance))), '');
+{$ENDIF MLHOOKED}
             except
               UnitPackage := '';
             end;

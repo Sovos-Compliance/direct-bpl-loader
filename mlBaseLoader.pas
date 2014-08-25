@@ -25,6 +25,8 @@
 *                                                                              *
 *******************************************************************************}
 
+{$I APIMODE.INC}
+
 unit mlBaseLoader;
 
 interface
@@ -107,7 +109,7 @@ type
 implementation
 
 uses
-  mlLibraryManager;
+  mlLibrary;
 
 /// Convert a Relative Virtual Address to an absolute pointer
 function TMlBaseLoader.ConvertRVAToPointer(RVA: LongWord): Pointer;
@@ -518,10 +520,18 @@ begin
     end else
     begin
       // Check the Mem API
+{$IFDEF MLHOOKED}
+      Result := mlLibrary.GetModuleHandle(PChar(LibraryName));
+{$ELSE}
       Result := GetModuleHandleMem(LibraryName);
+{$ENDIF MLHOOKED}
       if Result <> 0 then
       begin
+{$IFDEF MLHOOKED}
+        Result := mlLibrary.LoadLibrary(nil, PChar(LibraryName)); // No need to pass a mem stream. This will just increase the ref count
+{$ELSE}
         Result := LoadLibraryMem(nil, LibraryName); // No need to pass a mem stream. This will just increase the ref count
+{$ENDIF MLHOOKED}
         Source := lsMemStream;
       end else
       begin
@@ -551,10 +561,17 @@ begin
           laMemStream:
             begin
               // Load the external as a BPL or a DLL. See comment above
+{$IFDEF MLHOOKED}
+              if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
+                Result := mlLibrary.LoadPackage(MemStream, LibraryName)
+              else
+                Result := mlLibrary.LoadLibrary(MemStream, PChar(LibraryName));
+{$ELSE}
               if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
                 Result := LoadPackageMem(MemStream, LibraryName)
               else
                 Result := LoadLibraryMem(MemStream, LibraryName);
+{$ENDIF MLHOOKED}
               Source := lsMemStream;
               if FreeStream then
                 FreeAndNil(MemStream);
@@ -724,10 +741,17 @@ begin
       Win32Check(FreeLibrary(ExternalLibraryArray[I].LibraryHandle))
     else
     begin
+{$IFDEF MLHOOKED}
+      if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
+        mlLibrary.UnloadPackage(ExternalLibraryArray[I].LibraryHandle)
+      else
+        mlLibrary.FreeLibrary(ExternalLibraryArray[I].LibraryHandle);
+{$ELSE}
       if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
         UnloadPackageMem(ExternalLibraryArray[I].LibraryHandle)
       else
         FreeLibraryMem(ExternalLibraryArray[I].LibraryHandle);
+{$ENDIF MLHOOKED}
     end;
   end;
   SetLength(ExternalLibraryArray, 0);
@@ -798,7 +822,11 @@ begin
       if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
         Result := GetProcAddress(aLibHandle, aProcName)
       else
+{$IFDEF MLHOOKED}
+        Result := mlLibrary.GetProcAddress(aLibHandle, aProcName);
+{$ELSE}
         Result := GetProcAddressMem(aLibHandle, aProcName);
+{$ENDIF MLHOOKED}
       Exit;
     end;
   end;

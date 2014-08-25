@@ -1,0 +1,54 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{149fed41-08fc-4ae7-889e-230e88da3aaa}</ProjectGuid>
+  </PropertyGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <Projects Include="TestHooked.dproj" />
+    <Projects Include="TestSingleBplManual.dproj" />
+    <Projects Include="TestUnhooked.dproj" />
+  </ItemGroup>
+  <ProjectExtensions>
+    <Borland.Personality>Default.Personality</Borland.Personality>
+    <Borland.ProjectType />
+    <BorlandProject>
+<BorlandProject xmlns=""><Default.Personality></Default.Personality></BorlandProject></BorlandProject>
+  </ProjectExtensions>
+  <Target Name="TestHooked">
+    <MSBuild Projects="TestHooked.dproj" Targets="" />
+  </Target>
+  <Target Name="TestHooked:Clean">
+    <MSBuild Projects="TestHooked.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="TestHooked:Make">
+    <MSBuild Projects="TestHooked.dproj" Targets="Make" />
+  </Target>
+  <Target Name="TestUnhooked">
+    <MSBuild Projects="TestUnhooked.dproj" Targets="" />
+  </Target>
+  <Target Name="TestUnhooked:Clean">
+    <MSBuild Projects="TestUnhooked.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="TestUnhooked:Make">
+    <MSBuild Projects="TestUnhooked.dproj" Targets="Make" />
+  </Target>
+  <Target Name="TestSingleBplManual">
+    <MSBuild Projects="TestSingleBplManual.dproj" Targets="" />
+  </Target>
+  <Target Name="TestSingleBplManual:Clean">
+    <MSBuild Projects="TestSingleBplManual.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="TestSingleBplManual:Make">
+    <MSBuild Projects="TestSingleBplManual.dproj" Targets="Make" />
+  </Target>
+  <Target Name="Build">
+    <CallTarget Targets="TestHooked;TestUnhooked;TestSingleBplManual" />
+  </Target>
+  <Target Name="Clean">
+    <CallTarget Targets="TestHooked:Clean;TestUnhooked:Clean;TestSingleBplManual:Clean" />
+  </Target>
+  <Target Name="Make">
+    <CallTarget Targets="TestHooked:Make;TestUnhooked:Make;TestSingleBplManual:Make" />
+  </Target>
+  <Import Condition="Exists('$(MSBuildBinPath)\Borland.Group.Targets')" Project="$(MSBuildBinPath)\Borland.Group.Targets" />
+</Project>
