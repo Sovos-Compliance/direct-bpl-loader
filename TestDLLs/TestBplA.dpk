@@ -23,12 +23,13 @@ package TestBplA;
 {$MINENUMSIZE 1}
 {$IMAGEBASE $400000}
 {$IMPLICITBUILD OFF}
+{$DEFINE DEBUG}
 
 requires
-  rtl,
-  vcl;
+  rtl;
 
 contains
-  TestClassA in 'TestClassA.pas';
+  TestClassA in 'TestClassA.pas',
+  TestInterfaces in 'TestInterfaces.pas';
 
 end.

@@ -3,7 +3,7 @@ unit TestClassB;
 interface
 
 uses
-  SysUtils, Classes, StdCtrls,
+  Classes, 
   TestClassA;
 
 type
@@ -18,16 +18,12 @@ type
     { Published declarations }
   end;
 
-procedure Register;
-
 implementation
-
-procedure Register;
-begin
-  RegisterComponents('Convey', [TTestClassB]);
-end;
 
 initialization
   RegisterClass(TTestClassB);
+
+finalization
+  UnRegisterClass(TTestClassB);
 
 end.

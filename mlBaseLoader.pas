@@ -25,6 +25,8 @@
 *                                                                              *
 *******************************************************************************}
 
+{$I APIMODE.INC}
+
 unit mlBaseLoader;
 
 interface
@@ -64,7 +66,7 @@ type
 
     // Helper functions
     function ConvertRVAToPointer(RVA: LongWord): Pointer;
-    function ParseStringToNumber(Astring: string): LongWord;
+    function ParseStringToNumber(aString: String): LongWord;
 
     // DLL parsing function
     function ReadImageHeaders  : Boolean;
@@ -92,9 +94,9 @@ type
     procedure Unload;
 
     function GetFunctionAddress(aName: String): Pointer;
-    function FindResource(lpName, lpType: PChar): HRSRC;
-    function LoadResource(hResInfo: HRSRC): HGLOBAL;
-    function SizeOfResource(hResInfo: HRSRC): DWORD;
+    function FindResourceMl(lpName, lpType: PChar): HRSRC;
+    function LoadResourceMl(hResInfo: HRSRC): HGLOBAL;
+    function SizeOfResourceMl(hResInfo: HRSRC): DWORD;
 
     property Loaded          : Boolean                      read fLoaded           write fLoaded;
     property ImageBase       : Pointer                      read fImageBase;
@@ -107,7 +109,7 @@ type
 implementation
 
 uses
-  mlLibraryManager;
+  mlLibrary;
 
 /// Convert a Relative Virtual Address to an absolute pointer
 function TMlBaseLoader.ConvertRVAToPointer(RVA: LongWord): Pointer;
@@ -123,17 +125,15 @@ begin
   end;
 end;
 
-function TMlBaseLoader.ParseStringToNumber(Astring: string): LongWord;
+function TMlBaseLoader.ParseStringToNumber(aString: String): LongWord;
 var
   CharCounter: Integer;
 begin
   Result := 0;
-  for CharCounter := 0 to length(Astring) - 1 do
+  for CharCounter := 0 to length(aString) - 1 do
   begin
-    if Astring[CharCounter] in ['0'..'9'] then
-    begin
-      Result := (Result * 10) + BYTE(BYTE(Astring[CharCounter]) - BYTE('0'));
-    end
+    if aString[CharCounter] in ['0'..'9'] then
+      Result := (Result * 10) + BYTE(BYTE(aString[CharCounter]) - BYTE('0'))
     else
       Exit;
   end;
@@ -520,10 +520,18 @@ begin
     end else
     begin
       // Check the Mem API
+{$IFDEF MLHOOKED}
+      Result := mlLibrary.GetModuleHandle(PChar(LibraryName));
+{$ELSE}
       Result := GetModuleHandleMem(LibraryName);
+{$ENDIF MLHOOKED}
       if Result <> 0 then
       begin
+{$IFDEF MLHOOKED}
+        Result := mlLibrary.LoadLibrary(nil, PChar(LibraryName)); // No need to pass a mem stream. This will just increase the ref count
+{$ELSE}
         Result := LoadLibraryMem(nil, LibraryName); // No need to pass a mem stream. This will just increase the ref count
+{$ENDIF MLHOOKED}
         Source := lsMemStream;
       end else
       begin
@@ -553,10 +561,17 @@ begin
           laMemStream:
             begin
               // Load the external as a BPL or a DLL. See comment above
+{$IFDEF MLHOOKED}
+              if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
+                Result := mlLibrary.LoadPackage(MemStream, LibraryName)
+              else
+                Result := mlLibrary.LoadLibrary(MemStream, PChar(LibraryName));
+{$ELSE}
               if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
                 Result := LoadPackageMem(MemStream, LibraryName)
               else
                 Result := LoadLibraryMem(MemStream, LibraryName);
+{$ENDIF MLHOOKED}
               Source := lsMemStream;
               if FreeStream then
                 FreeAndNil(MemStream);
@@ -726,10 +741,17 @@ begin
       Win32Check(FreeLibrary(ExternalLibraryArray[I].LibraryHandle))
     else
     begin
+{$IFDEF MLHOOKED}
+      if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
+        mlLibrary.UnloadPackage(ExternalLibraryArray[I].LibraryHandle)
+      else
+        mlLibrary.FreeLibrary(ExternalLibraryArray[I].LibraryHandle);
+{$ELSE}
       if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
         UnloadPackageMem(ExternalLibraryArray[I].LibraryHandle)
       else
         FreeLibraryMem(ExternalLibraryArray[I].LibraryHandle);
+{$ENDIF MLHOOKED}
     end;
   end;
   SetLength(ExternalLibraryArray, 0);
@@ -772,7 +794,7 @@ end;
 /// Find the resource requested and return a pointer to its data structure
 /// The HRSRC result is just a pointer to a IMAGE_RESOURCE_DATA_ENTRY record passed to
 /// LoadResource and SizeOfResource
-function TMlBaseLoader.FindResource(lpName, lpType: PChar): HRSRC;
+function TMlBaseLoader.FindResourceMl(lpName, lpType: PChar): HRSRC;
 var
   Resource: TJclPeResourceItem;
 begin
@@ -800,14 +822,18 @@ begin
       if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
         Result := GetProcAddress(aLibHandle, aProcName)
       else
+{$IFDEF MLHOOKED}
+        Result := mlLibrary.GetProcAddress(aLibHandle, aProcName);
+{$ELSE}
         Result := GetProcAddressMem(aLibHandle, aProcName);
+{$ENDIF MLHOOKED}
       Exit;
     end;
   end;
 end;
 
 /// Return a pointer to the actual resource data in memory
-function TMlBaseLoader.LoadResource(hResInfo: HRSRC): HGLOBAL;
+function TMlBaseLoader.LoadResourceMl(hResInfo: HRSRC): HGLOBAL;
 begin
   if IsValidResHandle(hResInfo) then
     Result := HGLOBAL(fJclImage.RvaToVa(PImageResourceDataEntry(hResInfo).OffsetToData))
@@ -816,7 +842,7 @@ begin
 end;
 
 /// Calculate the size of the resource passed
-function TMlBaseLoader.SizeOfResource(hResInfo: HRSRC): DWORD;
+function TMlBaseLoader.SizeOfResourceMl(hResInfo: HRSRC): DWORD;
 begin
   if IsValidResHandle(hResInfo) then
     Result := PImageResourceDataEntry(hResInfo).Size

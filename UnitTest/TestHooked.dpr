@@ -1,4 +1,4 @@
-program TestUnhooked;
+program TestHooked;
 {
 
   Delphi DUnit Test Project
@@ -19,15 +19,8 @@ uses
   TestFramework,
   GUITestRunner,
   TextTestRunner,
-  TestmlBaseLoader in 'TestmlBaseLoader.pas',
-  mlBaseLoader in '..\mlBaseLoader.pas',
-  mlPEHeaders in '..\mlPEHeaders.pas',
-  mlManagers in '..\mlManagers.pas',
-  TestmlLibraryManager in 'TestmlLibraryManager.pas',
-  TestConstants in 'TestConstants.pas',
-  mlTypes in '..\mlTypes.pas',
-  mlBPLLoader in '..\mlBPLLoader.pas',
-  mlLibrary in '..\mlLibrary.pas';
+  TestmlLibraryManagerHooked in 'TestmlLibraryManagerHooked.pas',
+  TestConstants in 'TestConstants.pas';
 
 {$R *.RES}
 

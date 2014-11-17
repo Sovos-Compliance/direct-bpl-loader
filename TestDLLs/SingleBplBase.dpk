@@ -1,4 +1,4 @@
-package TestBplC_ReqB;
+package SingleBplBase;
 
 {$R *.res}
 {$ALIGN 8}
@@ -11,7 +11,7 @@ package TestBplC_ReqB;
 {$LOCALSYMBOLS ON}
 {$LONGSTRINGS ON}
 {$OPENSTRINGS ON}
-{$OPTIMIZATION OFF}
+{$OPTIMIZATION ON}
 {$OVERFLOWCHECKS OFF}
 {$RANGECHECKS OFF}
 {$REFERENCEINFO ON}
@@ -23,13 +23,8 @@ package TestBplC_ReqB;
 {$MINENUMSIZE 1}
 {$IMAGEBASE $400000}
 {$IMPLICITBUILD OFF}
-{$DEFINE DEBUG}
-
-requires
-  rtl,
-  TestBplB_ReqA;
 
 contains
-  TestClassC in 'TestClassC.pas';
+  SingleBplBaseMain in 'SingleBplBaseMain.pas';
 
 end.

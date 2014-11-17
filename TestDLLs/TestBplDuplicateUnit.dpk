@@ -4,17 +4,17 @@ package TestBplDuplicateUnit;
 {$ALIGN 8}
 {$ASSERTIONS ON}
 {$BOOLEVAL OFF}
-{$DEBUGINFO OFF}
+{$DEBUGINFO ON}
 {$EXTENDEDSYNTAX ON}
 {$IMPORTEDDATA ON}
 {$IOCHECKS ON}
-{$LOCALSYMBOLS OFF}
+{$LOCALSYMBOLS ON}
 {$LONGSTRINGS ON}
 {$OPENSTRINGS ON}
-{$OPTIMIZATION ON}
+{$OPTIMIZATION OFF}
 {$OVERFLOWCHECKS OFF}
 {$RANGECHECKS OFF}
-{$REFERENCEINFO OFF}
+{$REFERENCEINFO ON}
 {$SAFEDIVIDE OFF}
 {$STACKFRAMES OFF}
 {$TYPEDADDRESS OFF}
@@ -23,13 +23,13 @@ package TestBplDuplicateUnit;
 {$MINENUMSIZE 1}
 {$IMAGEBASE $400000}
 {$IMPLICITBUILD OFF}
-{$DEFINE RELEASE}
+{$DEFINE DEBUG}
 
 requires
-  rtl,
-  vcl;
+  rtl;
 
 contains
-  TestClassA in 'TestClassA.pas';
+  TestClassA in 'TestClassA.pas',
+  TestInterfaces in 'TestInterfaces.pas';
 
 end.

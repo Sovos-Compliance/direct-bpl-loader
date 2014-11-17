@@ -114,7 +114,7 @@ var
   ResourceFound: HRSRC;
 begin
   LoadHelper(DLL_PATH);
-  ResourceFound := fMlBaseLoader.FindResource(TEST_RES_NAME, TEST_RES_TYPE);
+  ResourceFound := fMlBaseLoader.FindResourceMl(TEST_RES_NAME, TEST_RES_TYPE);
   CheckNotEquals(0, ResourceFound);
 end;
 
@@ -123,7 +123,7 @@ var
   ResourceFound: HRSRC;
 begin
   LoadHelper(DLL_PATH);
-  ResourceFound := fMlBaseLoader.FindResource('Res name that doesn''t exist in the lib', TEST_RES_TYPE);
+  ResourceFound := fMlBaseLoader.FindResourceMl('Res name that doesn''t exist in the lib', TEST_RES_TYPE);
   CheckEquals(0, ResourceFound);
 end;
 
@@ -132,7 +132,7 @@ var
   ResourceFound: HRSRC;
 begin
   LoadHelper(DLL_PATH);
-  ResourceFound := fMlBaseLoader.FindResource(TEST_RES_NAME, TEST_NONEXISTING_RES_TYPE);
+  ResourceFound := fMlBaseLoader.FindResourceMl(TEST_RES_NAME, TEST_NONEXISTING_RES_TYPE);
   CheckEquals(0, ResourceFound);
 end;
 
@@ -142,8 +142,8 @@ var
   ResourcePointer: THandle;
 begin
   LoadHelper(DLL_PATH);
-  ResourceFound := fMlBaseLoader.FindResource(TEST_RES_NAME, TEST_RES_TYPE);
-  ResourcePointer := fMlBaseLoader.LoadResource(ResourceFound);
+  ResourceFound := fMlBaseLoader.FindResourceMl(TEST_RES_NAME, TEST_RES_TYPE);
+  ResourcePointer := fMlBaseLoader.LoadResourceMl(ResourceFound);
   CheckNotEquals(0, ResourcePointer);
 end;
 
@@ -155,9 +155,9 @@ var
   ResourceSize: DWORD;
 begin
   LoadHelper(DLL_PATH);
-  ResourceFound := fMlBaseLoader.FindResource(TEST_RES_NAME, TEST_RES_TYPE);
-  ResourceHandle := fMlBaseLoader.LoadResource(ResourceFound);
-  ResourceSize := fMlBaseLoader.SizeOfResource(ResourceFound);
+  ResourceFound := fMlBaseLoader.FindResourceMl(TEST_RES_NAME, TEST_RES_TYPE);
+  ResourceHandle := fMlBaseLoader.LoadResourceMl(ResourceFound);
+  ResourceSize := fMlBaseLoader.SizeOfResourceMl(ResourceFound);
 
   LibWin := LoadLibrary(DLL_PATH);
   ResourceWin := FindResource(LibWin, TEST_RES_NAME, TEST_RES_TYPE);
@@ -171,14 +171,14 @@ procedure TestTMlBaseLoader.TestLoadResourceInvalidByZeroHandle;
 begin
   LoadHelper(DLL_PATH);
   ExpectedException := EMlResourceError;
-  fMlBaseLoader.LoadResource(0);
+  fMlBaseLoader.LoadResourceMl(0);
 end;
 
 procedure TestTMlBaseLoader.TestLoadResourceInvalidByWrongHandle;
 begin
   LoadHelper(DLL_PATH);
   ExpectedException := EMlResourceError;
-  fMlBaseLoader.LoadResource(TEST_WRONG_RES_HANDLE);
+  fMlBaseLoader.LoadResourceMl(TEST_WRONG_RES_HANDLE);
 end;
 
 procedure TestTMlBaseLoader.TestSizeOfResourceValid;
@@ -187,8 +187,8 @@ var
   ResourceSize: DWORD;
 begin
   LoadHelper(DLL_PATH);
-  ResourceFound := fMlBaseLoader.FindResource(TEST_RES_NAME, TEST_RES_TYPE);
-  ResourceSize := fMlBaseLoader.SizeOfResource(ResourceFound);
+  ResourceFound := fMlBaseLoader.FindResourceMl(TEST_RES_NAME, TEST_RES_TYPE);
+  ResourceSize := fMlBaseLoader.SizeOfResourceMl(ResourceFound);
   CheckEquals(TEST_RES_SIZE, ResourceSize);
 end;
 
@@ -199,8 +199,8 @@ var
   ResourceSize, ResourceSizeWin: DWORD;
 begin
   LoadHelper(DLL_PATH);
-  ResourceFound := fMlBaseLoader.FindResource(TEST_RES_NAME, TEST_RES_TYPE);
-  ResourceSize := fMlBaseLoader.SizeOfResource(ResourceFound);
+  ResourceFound := fMlBaseLoader.FindResourceMl(TEST_RES_NAME, TEST_RES_TYPE);
+  ResourceSize := fMlBaseLoader.SizeOfResourceMl(ResourceFound);
 
   LibWin := LoadLibrary(DLL_PATH);
   ResourceWin := FindResource(LibWin, TEST_RES_NAME, TEST_RES_TYPE);
@@ -213,14 +213,14 @@ procedure TestTMlBaseLoader.TestSizeOfResourceInvalidByZeroHandle;
 begin
   LoadHelper(DLL_PATH);
   ExpectedException := EMlResourceError;
-  fMlBaseLoader.SizeOfResource(0);
+  fMlBaseLoader.SizeOfResourceMl(0);
 end;
 
 procedure TestTMlBaseLoader.TestSizeOfResourceInvalidByWrongHandle;
 begin
   LoadHelper(DLL_PATH);
   ExpectedException := EMlResourceError;
-  fMlBaseLoader.SizeOfResource(TEST_WRONG_RES_HANDLE);
+  fMlBaseLoader.SizeOfResourceMl(TEST_WRONG_RES_HANDLE);
 end;
 
 procedure TestTMlBaseLoader.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var

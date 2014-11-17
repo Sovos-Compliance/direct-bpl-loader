@@ -4,6 +4,8 @@
   </PropertyGroup>
   <ItemGroup />
   <ItemGroup>
+    <Projects Include="SingleBplBase.dproj" />
+    <Projects Include="SingleBplUse.dproj" />
     <Projects Include="TestBplA.dproj" />
     <Projects Include="TestBplB_ReqA.dproj" />
     <Projects Include="TestBplC_ReqB.dproj" />
@@ -16,6 +18,24 @@
     <BorlandProject>
 <BorlandProject xmlns=""><Default.Personality></Default.Personality></BorlandProject></BorlandProject>
   </ProjectExtensions>
+  <Target Name="SingleBplBase">
+    <MSBuild Projects="SingleBplBase.dproj" Targets="" />
+  </Target>
+  <Target Name="SingleBplBase:Clean">
+    <MSBuild Projects="SingleBplBase.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="SingleBplBase:Make">
+    <MSBuild Projects="SingleBplBase.dproj" Targets="Make" />
+  </Target>
+  <Target Name="SingleBplUse">
+    <MSBuild Projects="SingleBplUse.dproj" Targets="" />
+  </Target>
+  <Target Name="SingleBplUse:Clean">
+    <MSBuild Projects="SingleBplUse.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="SingleBplUse:Make">
+    <MSBuild Projects="SingleBplUse.dproj" Targets="Make" />
+  </Target>
   <Target Name="TestBplA">
     <MSBuild Projects="TestBplA.dproj" Targets="" />
   </Target>
@@ -62,13 +82,13 @@
     <MSBuild Projects="TestDll.dproj" Targets="Make" />
   </Target>
   <Target Name="Build">
-    <CallTarget Targets="TestBplA;TestBplDuplicateUnit;TestBplB_ReqA;TestBplC_ReqB;TestDll" />
+    <CallTarget Targets="SingleBplBase;SingleBplUse;TestBplA;TestBplDuplicateUnit;TestBplB_ReqA;TestBplC_ReqB;TestDll" />
   </Target>
   <Target Name="Clean">
-    <CallTarget Targets="TestBplA:Clean;TestBplDuplicateUnit:Clean;TestBplB_ReqA:Clean;TestBplC_ReqB:Clean;TestDll:Clean" />
+    <CallTarget Targets="SingleBplBase:Clean;SingleBplUse:Clean;TestBplA:Clean;TestBplDuplicateUnit:Clean;TestBplB_ReqA:Clean;TestBplC_ReqB:Clean;TestDll:Clean" />
   </Target>
   <Target Name="Make">
-    <CallTarget Targets="TestBplA:Make;TestBplDuplicateUnit:Make;TestBplB_ReqA:Make;TestBplC_ReqB:Make;TestDll:Make" />
+    <CallTarget Targets="SingleBplBase:Make;SingleBplUse:Make;TestBplA:Make;TestBplDuplicateUnit:Make;TestBplB_ReqA:Make;TestBplC_ReqB:Make;TestDll:Make" />
   </Target>
   <Import Condition="Exists('$(MSBuildBinPath)\Borland.Group.Targets')" Project="$(MSBuildBinPath)\Borland.Group.Targets" />
 </Project>
