@@ -2,7 +2,7 @@ program D5Test;
 {$APPTYPE CONSOLE}
 uses
   SysUtils,
-  mlLibraryManager;
+  mlLibrary;
 
 begin
   // Insert user code here

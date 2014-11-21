@@ -232,7 +232,7 @@ end;
 
 procedure TestLibraryManager.TestOnDependencyLoadEvent;
 begin
-  MlOnDependencyLoad := TestEvent;
+  SetMlOnLoadCallback(TestEvent);
   fEventCalled := false;
   fMemStream.LoadFromFile(BPL_PATH_B);
   LoadLibraryMem(fMemStream, BPL_PATH_B);
@@ -290,7 +290,7 @@ procedure TestLibraryManager.TestLoadPackageMemRequiresBFromMem;
 var
   TestClass: TPersistentClass;
 begin
-  MlOnDependencyLoad := TestEventLoadActionFromMem;
+  SetMlOnLoadCallback(TestEventLoadActionFromMem);
   fMemStream.LoadFromFile(BPL_PATH_C);
   LoadPackageMem(fMemStream, BPL_PATH_C);
   TestClass := GetClass(TEST_CLASS_NAME_C);

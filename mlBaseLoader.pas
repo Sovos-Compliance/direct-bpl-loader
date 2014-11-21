@@ -511,7 +511,7 @@ begin
     Result := GetModuleHandle(PChar(LibraryName));
     if Result <> 0 then
     begin
-      Result := LoadLibrary(PChar(LibraryName));  // Inc the reference count
+      Result := Windows.LoadLibrary(PChar(LibraryName));  // Inc the reference count
       // Check the result again because there is a slight chance that the lib got deleted between the GetModuleHandle and LoadLibrary calls (very unlikely)
       if Result = 0 then
         raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
@@ -521,14 +521,14 @@ begin
     begin
       // Check the Mem API
 {$IFDEF MLHOOKED}
-      Result := mlLibrary.GetModuleHandle(PChar(LibraryName));
+      Result := GetModuleHandle(PChar(LibraryName));
 {$ELSE}
       Result := GetModuleHandleMem(LibraryName);
 {$ENDIF MLHOOKED}
       if Result <> 0 then
       begin
 {$IFDEF MLHOOKED}
-        Result := mlLibrary.LoadLibrary(nil, PChar(LibraryName)); // No need to pass a mem stream. This will just increase the ref count
+        Result := LoadLibrary(nil, PChar(LibraryName)); // No need to pass a mem stream. This will just increase the ref count
 {$ELSE}
         Result := LoadLibraryMem(nil, LibraryName); // No need to pass a mem stream. This will just increase the ref count
 {$ENDIF MLHOOKED}
@@ -552,7 +552,7 @@ begin
               if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
                 Result := LoadPackage(LibraryName)
               else
-                Result := LoadLibrary(PChar(LibraryName));
+                Result := Windows.LoadLibrary(PChar(LibraryName));
               if Result = 0 then
                 raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
                   [LibraryName, SysErrorMessage(GetLastError)]);
@@ -563,9 +563,9 @@ begin
               // Load the external as a BPL or a DLL. See comment above
 {$IFDEF MLHOOKED}
               if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-                Result := mlLibrary.LoadPackage(MemStream, LibraryName)
+                Result := LoadPackageMem(MemStream, LibraryName)
               else
-                Result := mlLibrary.LoadLibrary(MemStream, PChar(LibraryName));
+                Result := LoadLibrary(MemStream, PChar(LibraryName));
 {$ELSE}
               if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
                 Result := LoadPackageMem(MemStream, LibraryName)
@@ -743,9 +743,9 @@ begin
     begin
 {$IFDEF MLHOOKED}
       if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
-        mlLibrary.UnloadPackage(ExternalLibraryArray[I].LibraryHandle)
+        UnloadPackage(ExternalLibraryArray[I].LibraryHandle)
       else
-        mlLibrary.FreeLibrary(ExternalLibraryArray[I].LibraryHandle);
+        FreeLibrary(ExternalLibraryArray[I].LibraryHandle);
 {$ELSE}
       if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
         UnloadPackageMem(ExternalLibraryArray[I].LibraryHandle)
@@ -823,7 +823,7 @@ begin
         Result := GetProcAddress(aLibHandle, aProcName)
       else
 {$IFDEF MLHOOKED}
-        Result := mlLibrary.GetProcAddress(aLibHandle, aProcName);
+        Result := GetProcAddress(aLibHandle, aProcName);
 {$ELSE}
         Result := GetProcAddressMem(aLibHandle, aProcName);
 {$ENDIF MLHOOKED}

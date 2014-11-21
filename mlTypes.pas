@@ -34,6 +34,21 @@ type
   TMlLoadDependentLibraryEvent = procedure(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
       aMemStream: TMemoryStream; var aFreeStream: Boolean) of object;
 
+{$IFDEF VER130}
+  TValidatePackageProc = function (Module: HMODULE): Boolean;
+{$ENDIF VER130}
+
+type
+  TLoadLibraryFunc       = function (lpLibFileName: PChar)                           : HMODULE; stdcall;
+  TFreeLibraryFunc       = function (hModule: HMODULE)                               : BOOL; stdcall;
+  TGetProcAddressFunc    = function (hModule: HMODULE; lpProcName: LPCSTR)           : FARPROC; stdcall;
+  TFindResourceFunc      = function (hModule: HMODULE; lpName, lpType: PChar)        : HRSRC; stdcall;
+  TLoadResourceFunc      = function (hModule: HMODULE; hResInfo: HRSRC)              : HGLOBAL; stdcall;
+  TSizeofResourceFunc    = function (hModule: HMODULE; hResInfo: HRSRC)              : DWORD; stdcall;
+  TGetModuleFileNameFunc = function (hModule: HINST; lpFilename: PChar; nSize: DWORD): DWORD; stdcall;
+  TGetModuleHandleFunc   = function (lpModuleName: PChar)                            : HMODULE; stdcall;
+
+
 implementation
 
 end.

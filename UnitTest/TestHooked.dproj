@@ -27,6 +27,8 @@
     <DCC_ResourcePath>$(BDS)\Source\DUnit\src;..\</DCC_ResourcePath>
     <DCC_ObjPath>$(BDS)\Source\DUnit\src;..\</DCC_ObjPath>
     <DCC_IncludePath>$(BDS)\Source\DUnit\src;..\</DCC_IncludePath>
+    <DCC_Optimize>False</DCC_Optimize>
+    <DCC_SYMBOL_PLATFORM>False</DCC_SYMBOL_PLATFORM>
   </PropertyGroup>
   <ProjectExtensions>
     <Borland.Personality>Delphi.Personality</Borland.Personality>
