@@ -20,7 +20,14 @@ uses
   GUITestRunner,
   TextTestRunner,
   TestmlLibraryManagerHooked in 'TestmlLibraryManagerHooked.pas',
-  TestConstants in 'TestConstants.pas';
+  TestConstants in 'TestConstants.pas',
+  mlLibrary in '..\mlLibrary.pas',
+  HJPEImage in '..\HJPEImage.pas',
+  mlBaseLoader in '..\mlBaseLoader.pas',
+  mlBPLLoader in '..\mlBPLLoader.pas',
+  mlManagers in '..\mlManagers.pas',
+  mlPEHeaders in '..\mlPEHeaders.pas',
+  mlTypes in '..\mlTypes.pas';
 
 {$R *.RES}
 
