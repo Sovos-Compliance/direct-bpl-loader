@@ -10,3 +10,4 @@ __history
 bin/*
 *.cfg
 Docs/Description.docx
+*.~pas
