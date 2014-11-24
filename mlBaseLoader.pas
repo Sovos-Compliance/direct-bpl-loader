@@ -550,7 +550,7 @@ begin
               // VG 140814: This needs more investigation. Original LoadPackage uses LoadLibrary to load dependencies
               // but in our case this leads to items in the UnitHashBuckets array not being cleared and AVs
               if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-                Result := LoadPackage(LibraryName)
+                Result := SysUtils.LoadPackage(LibraryName)
               else
                 Result := LoadLibrary(PChar(LibraryName));
               if Result = 0 then

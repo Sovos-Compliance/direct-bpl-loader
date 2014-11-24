@@ -40,8 +40,11 @@ function GetModuleFileName(hModule: HINST; lpFilename: PChar; nSize: DWORD): DWO
 function GetModuleHandle(lpModuleName: PChar): HMODULE; stdcall;
 
 /// BPL loading functions
-function LoadPackage(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
-    TLibHandle; overload;
+function LoadPackage(aSource: TMemoryStream; aLibFileName: String
+{$IFDEF DELPHI2007}
+    ;aValidatePackage: TValidatePackageProc = nil
+{$ENDIF}
+    ): TLibHandle; overload;
 procedure UnloadPackage(Module: TLibHandle);
 
 {$ELSE}
@@ -143,10 +146,12 @@ end;
 { ============ Hooked BPL Library memory functions ============ }
 { ====================================================== }
 
-function LoadPackage(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
-    TLibHandle;
+function LoadPackage(aSource: TMemoryStream; aLibFileName: String
+{$IFDEF DELPHI2007}
+    ;aValidatePackage: TValidatePackageProc = nil
+{$ENDIF}) : TLibHandle;
 begin
-  Result := Manager.LoadPackageMl(aSource, aLibFileName, aValidatePackage);
+  Result := Manager.LoadPackageMl(aSource, aLibFileName, {$IFDEF DELPHI2007} aValidatePackage {$ELSE} nil {$ENDIF});
 end;
 
 procedure UnloadPackage(Module: TLibHandle);
