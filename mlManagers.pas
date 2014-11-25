@@ -435,7 +435,7 @@ begin
     Result := Length(S);
 end;
 
-function GetModuleHandleHooked(lpModuleName: PChar): HMODULE;
+function GetModuleHandleHooked(lpModuleName: PChar): HMODULE; stdcall;
 begin
   Result := Manager.GetModuleHandleMl(lpModuleName);
 end;
@@ -503,6 +503,7 @@ end;
 
 function TMlHookedLibraryManager.LoadLibraryMl(lpLibFileName: PChar): TLibHandle;
 begin
+  // Just forward the call to the original API and check the result. In the future the handle returned can be checked for clashes
   Result := fLoadLibraryOrig(lpLibFileName);
   Win32Check(Result <> 0);
 end;

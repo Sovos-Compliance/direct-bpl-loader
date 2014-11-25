@@ -1,4 +1,5 @@
-﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectGuid>{2a1f6a26-f2db-442b-b897-94b6e3a77b8e}</ProjectGuid>
     <MainSource>TestHooked.dpr</MainSource>
@@ -23,10 +24,10 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <Version>7.0</Version>
     <DCC_Define>DEBUG;_CONSOLE_TESTRUNNER;MLHOOKED</DCC_Define>
-    <DCC_UnitSearchPath>$(BDS)\Source\DUnit\src;..\</DCC_UnitSearchPath>
-    <DCC_ResourcePath>$(BDS)\Source\DUnit\src;..\</DCC_ResourcePath>
-    <DCC_ObjPath>$(BDS)\Source\DUnit\src;..\</DCC_ObjPath>
-    <DCC_IncludePath>$(BDS)\Source\DUnit\src;..\</DCC_IncludePath>
+    <DCC_UnitSearchPath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;$(BDS)\Source\DUnit\src;..\</DCC_UnitSearchPath>
+    <DCC_ResourcePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;$(BDS)\Source\DUnit\src;..\</DCC_ResourcePath>
+    <DCC_ObjPath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;$(BDS)\Source\DUnit\src;..\</DCC_ObjPath>
+    <DCC_IncludePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;$(BDS)\Source\DUnit\src;..\</DCC_IncludePath>
     <DCC_Optimize>False</DCC_Optimize>
     <DCC_SYMBOL_PLATFORM>False</DCC_SYMBOL_PLATFORM>
   </PropertyGroup>
