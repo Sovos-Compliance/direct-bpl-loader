@@ -27,6 +27,7 @@ uses
   mlTypes,
   mlManagers;
 
+
 {$IFDEF MLHOOKED}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
 function LoadLibrary(aSource: TMemoryStream; lpLibFileName: PChar = nil): HMODULE; overload; stdcall;
@@ -53,18 +54,20 @@ function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidateP
 procedure UnloadPackageMem(Module: TLibHandle);
 {$ENDIF MLHOOKED}
 
-procedure SetMlOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
+/// Helper functions to check module load status and set a callback function
+function MlGetGlobalModuleHandle(aLibFileName: String): TLibHandle;
+function MlIsWinLoaded(hModule: TLibHandle): Boolean; overload;
+procedure MlSetOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
 
 //TODO VG 090714: This method is used only to reset the loader during unit testing. Can be removed
 {$IFDEF _CONSOLE_TESTRUNNER}
 procedure UnloadAllLibraries;
-{$ENDIF}
+{$ENDIF _CONSOLE_TESTRUNNER}
 
 implementation
 
 const
   BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begins
-
 
 {$IFDEF MLHOOKED}
 { ============ Hooked DLL Library memory functions ============ }
@@ -150,7 +153,17 @@ begin
 end;
 {$ENDIF MLHOOKED}
 
-procedure SetMlOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
+function MlGetGlobalModuleHandle(aLibFileName: String): TLibHandle;
+begin
+  Result := Manager.GetGlobalModuleHandle(aLibFileName);
+end;
+
+function MlIsWinLoaded(hModule: TLibHandle): Boolean;
+begin
+  Result := Manager.IsWinLoaded(hModule);
+end;
+
+procedure MlSetOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
 begin
   Manager.OnDependencyLoad := aCallbackProc;
 end;
@@ -166,6 +179,6 @@ begin
   Manager := TMlLibraryManager.Create;
 {$ENDIF}
 end;
-{$ENDIF}
+{$ENDIF _CONSOLE_TESTRUNNER}
 
 end.

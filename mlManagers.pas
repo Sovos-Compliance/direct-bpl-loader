@@ -46,6 +46,8 @@ type
   public
     constructor Create;
     destructor Destroy; override;
+    function GetGlobalModuleHandle(aModuleName: String): TLibHandle;
+    function IsWinLoaded(aHandle: TLibHandle): Boolean; virtual;
     function LoadLibraryMl(aSource: TMemoryStream; aLibFileName: String): TLibHandle; virtual;
     procedure FreeLibraryMl(aHandle: TLibHandle); virtual;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; virtual;
@@ -74,16 +76,11 @@ type
     fGetModuleFileNameOrig: TGetModuleFileNameFunc;
     fGetModuleHandleOrig  : TGetModuleHandleFunc;
 
-    fWinHandles: array of Cardinal;
-
-    /// <summary>Read the handles and filename of all libraries loaded by Windows. The method is called
-    /// only when the Manager object is created</summary>
-    procedure ReadLoadedLibs;
     procedure HookAPIs;
-    function IsWinHandle(aHandle: TLibHandle): Boolean;
   public
     constructor Create;
     destructor Destroy; override;
+    function IsWinLoaded(aHandle: TLibHandle): Boolean; override;
     function LoadLibraryMl(lpLibFileName: PChar): TLibHandle; overload;
     function LoadLibraryMl(aSource: TMemoryStream; aLibFileName: String): TLibHandle; overload; override;
     procedure FreeLibraryMl(aHandle: TLibHandle); override;
@@ -106,7 +103,7 @@ var
 implementation
 
 const
-  BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begins
+  BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begins. Must be >= 1
 
 { TMlLibraryManager }
 
@@ -178,6 +175,8 @@ end;
 
 constructor TMlLibraryManager.Create;
 begin
+  Assert(BASE_HANDLE > 0, 'The base handle value must be greater than zero');
+
   inherited;
   fLibs := TList.Create;
   InitializeCriticalSection(fCrit);
@@ -190,6 +189,21 @@ begin
   fLibs.Free;
   DeleteCriticalSection(fCrit);
   inherited;
+end;
+
+/// Return the handle of a loaded module, regardless if it is from Mem or Disk
+function TMlLibraryManager.GetGlobalModuleHandle(aModuleName: String): TLibHandle;
+begin
+  Result := GetModuleHandle(PChar(aModuleName));
+  if Result = 0 then
+    Result := GetModuleHandleMl(aModuleName);
+end;
+
+function TMlLibraryManager.IsWinLoaded(aHandle: TLibHandle): Boolean;
+var
+  ModName: array[0..0] of Char; // No need for a buffer for the full path, we just care if the handle is valid
+begin
+  Result := GetModuleFileName(aHandle, ModName, Length(ModName)) <> 0;
 end;
 
 /// LoadLibraryMem: aName is compared to the loaded libraries and if found the
@@ -386,7 +400,6 @@ begin
   end;
 end;
 
-
 {$IFDEF MLHOOKED}
 { ============ Hooked DLL Library memory functions ============ }
 { ============================================================= }
@@ -426,12 +439,15 @@ function GetModuleFileNameHooked(hModule: HINST; lpFilename: PChar; nSize: DWORD
 var
   S: String;
 begin
-  FillChar(lpFilename, Length(lpFilename) * SizeOf(lpFilename[0]), 0);
   S := Manager.GetModuleFileNameMl(hModule);
-  StrLCopy(lpFilename, PChar(S), Length(lpFilename) - 1);
-  if Length(S) > Length(lpFilename) - 1 then
-    Result := Length(lpFilename)
-  else
+  StrLCopy(lpFilename, PChar(S), nSize);
+  // Mimic the behaviour of the original GetModuleFileName API with settings the result and error code
+  // VG 251114: Can be replaced with an exception if needed 
+  if Cardinal(Length(S)) > nSize then
+  begin
+    Result := nSize + 1;
+    SetLastError(ERROR_INSUFFICIENT_BUFFER);
+  end else
     Result := Length(S);
 end;
 
@@ -440,43 +456,12 @@ begin
   Result := Manager.GetModuleHandleMl(lpModuleName);
 end;
 
-{ TMlHookedLibraryManager }
-
-procedure TMlHookedLibraryManager.ReadLoadedLibs;
-var
-  TH32Handle: THandle;
-  ModuleEntry: TModuleEntry32;
-  HandleCount: Integer;
-begin
-  TH32Handle := CreateToolHelp32SnapShot(TH32CS_SNAPMODULE, 0);
-  Win32Check(TH32Handle <> 0);
-  try
-    // Get the current process handle as a loaded module
-    HandleCount := 1;
-    SetLength(fWinHandles, 1);
-    ModuleEntry.dwSize := SizeOf(ModuleEntry);
-    Win32Check(Module32First(TH32Handle, ModuleEntry));
-    fWinHandles[0] := ModuleEntry.hModule;
-    // Get the rest of the loaded module handles
-    while Module32Next(TH32Handle, ModuleEntry) do
-    begin
-      if HandleCount >= Length(fWinHandles) then
-        SetLength(fWinHandles, Length(fWinHandles) + 100);
-      fWinHandles[HandleCount] := ModuleEntry.hModule;
-      Inc(HandleCount);
-    end;
-    SetLength(fWinHandles, HandleCount);
-  finally
-    CloseHandle(TH32Handle);
-  end;
-end;
-
 procedure TMlHookedLibraryManager.HookAPIs;
 var
   ModuleBase: Pointer;
 begin
   ModuleBase := Pointer(GetModuleHandle(nil));
-  fHooks.HookImport(ModuleBase, kernel32, 'LoadLibraryA',       Pointer(@LoadLibraryHooked),      Pointer(@fLoadLibraryOrig));
+  fHooks.HookImport(ModuleBase, kernel32, 'LoadLibraryA',       Pointer(@LoadLibraryHooked),       Pointer(@fLoadLibraryOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'FreeLibrary',        Pointer(@FreeLibraryHooked),       Pointer(@fFreeLibraryOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'GetProcAddress',     Pointer(@GetProcAddressHooked),    Pointer(@fGetProcAddressOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'FindResourceA',      Pointer(@FindResourceHooked),      Pointer(@fFindResourceOrig));
@@ -489,7 +474,6 @@ end;
 constructor TMlHookedLibraryManager.Create;
 begin
   inherited;
-  ReadLoadedLibs;
   fHooks := TJclPeMapImgHooks.Create;
   HookAPIs;
 end;
@@ -499,6 +483,13 @@ begin
   fHooks.UnhookAll;
   fHooks.Free;
   inherited;
+end;
+
+function TMlHookedLibraryManager.IsWinLoaded(aHandle: TLibHandle): Boolean;
+var
+  ModName: array[0..0] of Char; // No need for a buffer for the full path, we just care if the handle is valid
+begin
+  Result := fGetModuleFileNameOrig(aHandle, ModName, Length(ModName)) <> 0;
 end;
 
 function TMlHookedLibraryManager.LoadLibraryMl(lpLibFileName: PChar): TLibHandle;
@@ -515,7 +506,7 @@ end;
 
 procedure TMlHookedLibraryManager.FreeLibraryMl(aHandle: TLibHandle);
 begin
-  if IsWinHandle(aHandle) then
+  if IsWinLoaded(aHandle) then
     Win32Check(fFreeLibraryOrig(aHandle))
   else
     inherited;
@@ -523,7 +514,7 @@ end;
 
 function TMlHookedLibraryManager.GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC;
 begin
-  if IsWinHandle(aHandle) then
+  if IsWinLoaded(aHandle) then
   begin
     Result := fGetProcAddressOrig(aHandle, lpProcName);
     Win32Check(Assigned(Result));
@@ -533,7 +524,7 @@ end;
 
 function TMlHookedLibraryManager.FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC;
 begin
-  if IsWinHandle(aHandle) then
+  if IsWinLoaded(aHandle) then
   begin
     Result := fFindResourceOrig(aHandle, lpName, lpType);
     Win32Check(Result <> 0);
@@ -543,7 +534,7 @@ end;
 
 function TMlHookedLibraryManager.LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL;
 begin
-  if IsWinHandle(aHandle) then
+  if IsWinLoaded(aHandle) then
   begin
     Result := fLoadResourceOrig(aHandle, hResInfo);
     Win32Check(Result <> 0);
@@ -553,7 +544,7 @@ end;
 
 function TMlHookedLibraryManager.SizeOfResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): DWORD;
 begin
-  if IsWinHandle(aHandle) then
+  if IsWinLoaded(aHandle) then
   begin
     Result := fSizeofResourceOrig(aHandle, hResInfo);
     Win32Check(Result <> 0);
@@ -562,11 +553,15 @@ begin
 end;
 
 function TMlHookedLibraryManager.GetModuleFileNameMl(aHandle: TLibHandle): String;
+var
+  NameLen: Integer;
 begin
-  if IsWinHandle(aHandle) then
+  if IsWinLoaded(aHandle) then
   begin
-    SetLength(Result, MAX_PATH);
-    Win32Check(fGetModuleFileNameOrig(aHandle, @Result[1], MAX_PATH) <> 0);
+    SetLength(Result, MAX_PATH + 1);
+    NameLen := fGetModuleFileNameOrig(aHandle, @Result[1], MAX_PATH);
+    Win32Check(NameLen <> 0);
+    SetLength(Result, NameLen);
   end else
     Result := inherited GetModuleFileNameMl(aHandle);
 end;
@@ -577,14 +572,6 @@ begin
   if Result = 0 then
     Result := inherited GetModuleHandleMl(aModuleName);
 end;
-
-function TMlHookedLibraryManager.IsWinHandle(aHandle: TLibHandle): Boolean;
-var
-  ModName: array[0..0] of Char; // No need for a buffer for the full path, we just care if the handle is valid
-begin
-  Result := fGetModuleFileNameOrig(aHandle, ModName, Length(ModName)) <> 0;
-end;
-
 {$ENDIF MLHOOKED}
 
 initialization

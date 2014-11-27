@@ -30,6 +30,7 @@
     <DCC_IncludePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;$(BDS)\Source\DUnit\src;..\</DCC_IncludePath>
     <DCC_Optimize>False</DCC_Optimize>
     <DCC_SYMBOL_PLATFORM>False</DCC_SYMBOL_PLATFORM>
+    <DCC_TYPEINFO_IMPLICITLY_ADDED>False</DCC_TYPEINFO_IMPLICITLY_ADDED>
   </PropertyGroup>
   <ProjectExtensions>
     <Borland.Personality>Delphi.Personality</Borland.Personality>
