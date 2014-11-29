@@ -76,12 +76,12 @@ type
     fGetModuleFileNameOrig: TGetModuleFileNameFunc;
     fGetModuleHandleOrig  : TGetModuleHandleFunc;
 
-    procedure HookAPIs;
   public
     constructor Create;
     destructor Destroy; override;
+    procedure HookAPIs;
     function IsWinLoaded(aHandle: TLibHandle): Boolean; override;
-    function LoadLibraryMl(lpLibFileName: PChar): TLibHandle; overload;
+    function LoadLibraryMl(lpLibFileName: PChar): TLibHandle; reintroduce; overload;
     function LoadLibraryMl(aSource: TMemoryStream; aLibFileName: String): TLibHandle; overload; override;
     procedure FreeLibraryMl(aHandle: TLibHandle); override;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; override;
@@ -463,19 +463,23 @@ begin
   ModuleBase := Pointer(GetModuleHandle(nil));
   fHooks.HookImport(ModuleBase, kernel32, 'LoadLibraryA',       Pointer(@LoadLibraryHooked),       Pointer(@fLoadLibraryOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'FreeLibrary',        Pointer(@FreeLibraryHooked),       Pointer(@fFreeLibraryOrig));
-  fHooks.HookImport(ModuleBase, kernel32, 'GetProcAddress',     Pointer(@GetProcAddressHooked),    Pointer(@fGetProcAddressOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'FindResourceA',      Pointer(@FindResourceHooked),      Pointer(@fFindResourceOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'LoadResource',       Pointer(@LoadResourceHooked),      Pointer(@fLoadResourceOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'SizeofResource',     Pointer(@SizeofResourceHooked),    Pointer(@fSizeofResourceOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'GetModuleFileNameA', Pointer(@GetModuleFileNameHooked), Pointer(@fGetModuleFileNameOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'GetModuleHandleA',   Pointer(@GetModuleHandleHooked),   Pointer(@fGetModuleHandleOrig));
+  fHooks.HookImport(ModuleBase, kernel32, 'GetProcAddress',     Pointer(@GetProcAddressHooked),    Pointer(@fGetProcAddressOrig));
 end;
 
 constructor TMlHookedLibraryManager.Create;
 begin
   inherited;
   fHooks := TJclPeMapImgHooks.Create;
-  HookAPIs;
+  // The HookAPIs call moved out of the constructor and has to be called manually
+  // Otherwise there is a chance of conflicts that the JCL HookImport function tries to use GetProcAddress, GetModuleHandle
+  // that are already hooked and forwarded to the Manager. However, the constructor of the Manager is not complete yet
+  // and the Manager object is still nil, which in turn leads to AVs
+  //  HookAPIs;  // Has to be called manually after the TMlHookedLibraryManager.Create call
 end;
 
 destructor TMlHookedLibraryManager.Destroy;
@@ -577,6 +581,7 @@ end;
 initialization
 {$IFDEF MLHOOKED}
   Manager := TMlHookedLibraryManager.Create;
+  Manager.HookAPIs;
 {$ELSE}
   Manager := TMlLibraryManager.Create;
 {$ENDIF MLHOOKED}

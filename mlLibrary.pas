@@ -175,6 +175,7 @@ begin
   Manager.Free;
 {$IFDEF MLHOOKED}
   Manager := TMlHookedLibraryManager.Create;
+  Manager.HookAPIs;
 {$ELSE}
   Manager := TMlLibraryManager.Create;
 {$ENDIF}
