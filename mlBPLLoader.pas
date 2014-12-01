@@ -68,10 +68,6 @@ type
     UnitHashArray: TUnitHashArray;
   end;
 
-{$IFDEF VER130}
-  TValidatePackageProc = function (Module: HMODULE): Boolean;
-{$ENDIF VER130}
-
 type
   TBPLLoader = class(TMlBaseLoader)
   private
@@ -169,8 +165,8 @@ begin
       else
       begin
 {$IFDEF MLHOOKED}
-        ResInfo := mlLibrary.FindResource(Module, 'PACKAGEINFO', RT_RCDATA);
-        Data := mlLibrary.LoadResource(Module, ResInfo);
+        ResInfo := FindResource(Module, 'PACKAGEINFO', RT_RCDATA);
+        Data := LoadResource(Module, ResInfo);
 {$ELSE}
         ResInfo := FindResourceMem(Module, 'PACKAGEINFO', RT_RCDATA);
         Data := LoadResourceMem(Module, ResInfo);
@@ -211,7 +207,7 @@ var
           if UnitPackage = '' then
             try
 {$IFDEF MLHOOKED}
-              if mlLibrary.GetModuleFileName(HashEntry.LibModule.Instance, Buf, Length(Buf)) <> 0 then
+              if GetModuleFileName(HashEntry.LibModule.Instance, Buf, Length(Buf)) <> 0 then
                 UnitPackage := Buf
               else
                 UnitPackage := '';

@@ -45,6 +45,7 @@ type
     procedure TestLoadPackageMemDuplicatePackageUnits;
     procedure TestLoadPackageMemRequiresB;
     procedure TestLoadPackageMemRequiresBFromMem;
+    procedure TestEnumModules;
   end;
 
 implementation
@@ -53,20 +54,6 @@ procedure TestLibraryManager.TestEvent(const aLibName, aDependentLib: String; va
     aMemStream: TMemoryStream; var aFreeStream: Boolean);
 begin
   fEventCalled := true;
-end;
-
-procedure TestLibraryManager.SetUp;
-begin
-  SetCurrentDir('..\TestDLLs'); // So the test DLL/BPLs can be found
-
-  UnloadAllLibraries;  //VG: Reset the library loader and free the memory
-  fMemStream := TMemoryStream.Create;
-end;
-
-procedure TestLibraryManager.TearDown;
-begin
-  UnloadAllLibraries;  //VG: Reset the library loader and free the memory
-  fMemStream.Free;
 end;
 
 procedure TestLibraryManager.TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction:
@@ -86,6 +73,20 @@ begin
     aMemStream := TMemoryStream.Create;
     aMemStream.LoadFromFile(SourceFile);
   end;
+end;
+
+procedure TestLibraryManager.SetUp;
+begin
+  SetCurrentDir('..\TestDLLs'); // So the test DLL/BPLs can be found
+
+  UnloadAllLibraries;  //VG: Reset the library loader and free the memory
+  fMemStream := TMemoryStream.Create;
+end;
+
+procedure TestLibraryManager.TearDown;
+begin
+  UnloadAllLibraries;  //VG: Reset the library loader and free the memory
+  fMemStream.Free;
 end;
 
 procedure TestLibraryManager.TestLoadLibraryMemValid;
@@ -232,7 +233,7 @@ end;
 
 procedure TestLibraryManager.TestOnDependencyLoadEvent;
 begin
-  MlOnDependencyLoad := TestEvent;
+  MlSetOnLoadCallback(TestEvent);
   fEventCalled := false;
   fMemStream.LoadFromFile(BPL_PATH_B);
   LoadLibraryMem(fMemStream, BPL_PATH_B);
@@ -290,12 +291,33 @@ procedure TestLibraryManager.TestLoadPackageMemRequiresBFromMem;
 var
   TestClass: TPersistentClass;
 begin
-  MlOnDependencyLoad := TestEventLoadActionFromMem;
+  MlSetOnLoadCallback(TestEventLoadActionFromMem);
   fMemStream.LoadFromFile(BPL_PATH_C);
   LoadPackageMem(fMemStream, BPL_PATH_C);
   TestClass := GetClass(TEST_CLASS_NAME_C);
   CheckNotNull(TObject(TestClass),
     Format('The "%s" class could not be loaded from the BPL. Check if project is built with Runtime packages', [TEST_CLASS_NAME_C]));
+end;
+
+// Helper callback function for the TestEnumModules test
+function EnumModule(HInstance: Integer; Data: Pointer): Boolean;
+var
+  ModName : string;
+  Len : Cardinal;
+begin
+  SetLength (ModName, MAX_PATH + 1);
+  Len := MAX_PATH;
+  SetLength (ModName, GetModuleFileName(HInstance, PChar(ModName), Len));
+  Result := True;
+end;
+
+procedure TestLibraryManager.TestEnumModules;
+begin
+  EnumModules(EnumModule, nil);
+  fMemStream.LoadFromFile(BPL_PATH_A);
+  LoadPackageMem(fMemStream, BPL_PATH_A);
+  EnumModules(EnumModule, nil);
+  // No need to check conditions at the moment. EnumModule should be able to list all modules and get their names without exceptions
 end;
 
 initialization

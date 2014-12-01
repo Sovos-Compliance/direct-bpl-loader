@@ -11,3 +11,4 @@ bin/*
 *.cfg
 Docs/Description.docx
 *.~pas
+*.dsk

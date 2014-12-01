@@ -508,79 +508,75 @@ begin
     // Otherwise the other module that used the external might unload it, while it is used by this module
 
     // Check the standard API
-    Result := GetModuleHandle(PChar(LibraryName));
+    Result := MlGetGlobalModuleHandle(LibraryName);
     if Result <> 0 then
     begin
-      Result := LoadLibrary(PChar(LibraryName));  // Inc the reference count
-      // Check the result again because there is a slight chance that the lib got deleted between the GetModuleHandle and LoadLibrary calls (very unlikely)
-      if Result = 0 then
-        raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
-          [LibraryName, SysErrorMessage(GetLastError)]);
-      Source := lsHardDisk;
-    end else
-    begin
-      // Check the Mem API
-{$IFDEF MLHOOKED}
-      Result := mlLibrary.GetModuleHandle(PChar(LibraryName));
-{$ELSE}
-      Result := GetModuleHandleMem(LibraryName);
-{$ENDIF MLHOOKED}
-      if Result <> 0 then
+      if MlIsWinLoaded(Result) then
       begin
+        // Load with the Win API
+        Result := Windows.LoadLibrary(PChar(LibraryName));  // Inc the reference count
+        // Check the result again because there is a slight chance that the lib got deleted between the GetModuleHandle and LoadLibrary calls (very unlikely)
+        if Result = 0 then
+          raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
+            [LibraryName, SysErrorMessage(GetLastError)]);
+        Source := lsHardDisk;
+      end else
+      begin
+        // Load with the Mem API
 {$IFDEF MLHOOKED}
-        Result := mlLibrary.LoadLibrary(nil, PChar(LibraryName)); // No need to pass a mem stream. This will just increase the ref count
+        Result := LoadLibrary(nil, PChar(LibraryName)); // No need to pass a mem stream. This will just increase the ref count
 {$ELSE}
         Result := LoadLibraryMem(nil, LibraryName); // No need to pass a mem stream. This will just increase the ref count
 {$ENDIF MLHOOKED}
         Source := lsMemStream;
-      end else
-      begin
-        // Not loaded from either Disk or Mem, so call the event and load the library
-        LoadAction := laHardDisk;
-        MemStream  := nil;
-        FreeStream := false;
-        if Assigned(fOnDependencyLoad) then
-          fOnDependencyLoad(fName, LibraryName, LoadAction, MemStream, FreeStream);
+      end
+    end else
+    begin
+      // Not loaded from either Disk or Mem, so call the event and load the library
+      LoadAction := laHardDisk;
+      MemStream  := nil;
+      FreeStream := false;
+      if Assigned(fOnDependencyLoad) then
+        fOnDependencyLoad(fName, LibraryName, LoadAction, MemStream, FreeStream);
 
-        Source := lsHardDisk;
-        case LoadAction of
-          laHardDisk:
-            begin
-              // Load the external as a BPL or a DLL
-              // VG 140814: This needs more investigation. Original LoadPackage uses LoadLibrary to load dependencies
-              // but in our case this leads to items in the UnitHashBuckets array not being cleared and AVs
-              if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-                Result := SysUtils.LoadPackage(LibraryName)
-              else
-                Result := LoadLibrary(PChar(LibraryName));
-              if Result = 0 then
-                raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
-                  [LibraryName, SysErrorMessage(GetLastError)]);
-              Source := lsHardDisk;
-            end;
-          laMemStream:
-            begin
-              // Load the external as a BPL or a DLL. See comment above
+      Source := lsHardDisk;
+      case LoadAction of
+        laHardDisk:
+          begin
+            // Load the external as a BPL or a DLL
+            // VG 140814: This needs more investigation. Original LoadPackage uses LoadLibrary to load dependencies,
+            // but in our case this leads to items in the UnitHashBuckets array not being cleared and AVs
+            if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
+              Result := LoadPackage(LibraryName)
+            else
+              Result := Windows.LoadLibrary(PChar(LibraryName));
+            if Result = 0 then
+              raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
+                [LibraryName, SysErrorMessage(GetLastError)]);
+            Source := lsHardDisk;
+          end;
+        laMemStream:
+          begin
+            // Load the external as a BPL or a DLL. See comment above
 {$IFDEF MLHOOKED}
-              if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-                Result := mlLibrary.LoadPackage(MemStream, LibraryName)
-              else
-                Result := mlLibrary.LoadLibrary(MemStream, PChar(LibraryName));
+            if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
+              Result := LoadPackageMem(MemStream, LibraryName)
+            else
+              Result := LoadLibrary(MemStream, PChar(LibraryName));
 {$ELSE}
-              if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-                Result := LoadPackageMem(MemStream, LibraryName)
-              else
-                Result := LoadLibraryMem(MemStream, LibraryName);
+            if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
+              Result := LoadPackageMem(MemStream, LibraryName)
+            else
+              Result := LoadLibraryMem(MemStream, LibraryName);
 {$ENDIF MLHOOKED}
-              Source := lsMemStream;
-              if FreeStream then
-                FreeAndNil(MemStream);
-            end;
-          laDiscard:  //VG 010814: TODO: Is this really necessary? What usage would it have?
-            begin
-              Exit;
-            end;
-        end;
+            Source := lsMemStream;
+            if FreeStream then
+              FreeAndNil(MemStream);
+          end;
+        laDiscard:  //VG 010814: TODO: Is this really necessary? What usage would it have?
+          begin
+            Exit;
+          end;
       end;
     end;
 
@@ -743,12 +739,18 @@ begin
     begin
 {$IFDEF MLHOOKED}
       if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
-        mlLibrary.UnloadPackage(ExternalLibraryArray[I].LibraryHandle)
+        if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
+          UnloadPackage(ExternalLibraryArray[I].LibraryHandle)
+        else
+          UnloadPackageMem(ExternalLibraryArray[I].LibraryHandle)
       else
-        mlLibrary.FreeLibrary(ExternalLibraryArray[I].LibraryHandle);
+        FreeLibrary(ExternalLibraryArray[I].LibraryHandle);
 {$ELSE}
       if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
-        UnloadPackageMem(ExternalLibraryArray[I].LibraryHandle)
+        if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
+          UnloadPackage(ExternalLibraryArray[I].LibraryHandle)
+        else
+          UnloadPackageMem(ExternalLibraryArray[I].LibraryHandle)
       else
         FreeLibraryMem(ExternalLibraryArray[I].LibraryHandle);
 {$ENDIF MLHOOKED}
@@ -823,7 +825,7 @@ begin
         Result := GetProcAddress(aLibHandle, aProcName)
       else
 {$IFDEF MLHOOKED}
-        Result := mlLibrary.GetProcAddress(aLibHandle, aProcName);
+        Result := GetProcAddress(aLibHandle, aProcName);
 {$ELSE}
         Result := GetProcAddressMem(aLibHandle, aProcName);
 {$ENDIF MLHOOKED}

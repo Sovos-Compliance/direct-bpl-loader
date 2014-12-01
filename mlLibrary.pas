@@ -27,25 +27,15 @@ uses
   mlTypes,
   mlManagers;
 
+
 {$IFDEF MLHOOKED}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
 function LoadLibrary(aSource: TMemoryStream; lpLibFileName: PChar = nil): HMODULE; overload; stdcall;
-function LoadLibrary(lpLibFileName: PChar): HMODULE; stdcall; overload;
-function FreeLibrary(hModule: HMODULE): BOOL; stdcall;
-function GetProcAddress(hModule: HMODULE; lpProcName: LPCSTR): FARPROC; stdcall;
-function FindResource(hModule: HMODULE; lpName, lpType: PChar): HRSRC; stdcall;
-function LoadResource(hModule: HMODULE; hResInfo: HRSRC): HGLOBAL; stdcall;
-function SizeofResource(hModule: HMODULE; hResInfo: HRSRC): DWORD; stdcall;
-function GetModuleFileName(hModule: HINST; lpFilename: PChar; nSize: DWORD): DWORD; stdcall;
-function GetModuleHandle(lpModuleName: PChar): HMODULE; stdcall;
 
 /// BPL loading functions
-function LoadPackage(aSource: TMemoryStream; aLibFileName: String
-{$IFDEF DELPHI2007}
-    ;aValidatePackage: TValidatePackageProc = nil
-{$ENDIF}
-    ): TLibHandle; overload;
-procedure UnloadPackage(Module: TLibHandle);
+function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
+    TLibHandle; overload;
+procedure UnloadPackageMem(Module: TLibHandle);
 
 {$ELSE}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
@@ -64,26 +54,20 @@ function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidateP
 procedure UnloadPackageMem(Module: TLibHandle);
 {$ENDIF MLHOOKED}
 
+/// Helper functions to check module load status and set a callback function
+function MlGetGlobalModuleHandle(aLibFileName: String): TLibHandle;
+function MlIsWinLoaded(hModule: TLibHandle): Boolean; overload;
+procedure MlSetOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
+
 //TODO VG 090714: This method is used only to reset the loader during unit testing. Can be removed
 {$IFDEF _CONSOLE_TESTRUNNER}
 procedure UnloadAllLibraries;
-{$ENDIF}
-
-var
-  MlOnDependencyLoad: TMlLoadDependentLibraryEvent;
+{$ENDIF _CONSOLE_TESTRUNNER}
 
 implementation
 
 const
   BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begins
-
-var
-{$IFDEF MLHOOKED}
-  Manager: TMlHookedLibraryManager;
-{$ELSE}
-  Manager: TMlLibraryManager;
-{$ENDIF MLHOOKED}
-
 
 {$IFDEF MLHOOKED}
 { ============ Hooked DLL Library memory functions ============ }
@@ -94,67 +78,16 @@ begin
   Result := Manager.LoadLibraryMl(aSource, lpLibFileName);
 end;
 
-function LoadLibrary(lpLibFileName: PChar): HMODULE; stdcall;
-begin
-  Result := Manager.LoadLibraryMl(nil, lpLibFileName);
-end;
-
-function FreeLibrary(hModule: HMODULE): BOOL; stdcall;
-begin
-  Manager.FreeLibraryMl(hModule);
-  Result := true;
-end;
-
-function GetProcAddress(hModule: HMODULE; lpProcName: LPCSTR): FARPROC; stdcall;
-begin
-  Result := Manager.GetProcAddressMl(hModule, lpProcName);
-end;
-
-function FindResource(hModule: HMODULE; lpName, lpType: PChar): HRSRC; stdcall;
-begin
-  Result := Manager.FindResourceMl(hModule, lpName, lpType);
-end;
-
-function LoadResource(hModule: HMODULE; hResInfo: HRSRC): HGLOBAL; stdcall;
-begin
-  Result := Manager.LoadResourceMl(hModule, hResInfo);
-end;
-
-function SizeofResource(hModule: HMODULE; hResInfo: HRSRC): DWORD; stdcall;
-begin
-  Result := Manager.SizeOfResourceMl(hModule, hResInfo);
-end;
-
-function GetModuleFileName(hModule: HINST; lpFilename: PChar; nSize: DWORD): DWORD; stdcall;
-var
-  S: String;
-begin
-  FillChar(lpFilename, Length(lpFilename) * SizeOf(lpFilename[0]), 0);
-  S := Manager.GetModuleFileNameMl(hModule);
-  StrLCopy(lpFilename, PChar(S), Length(lpFilename) - 1);
-  if Length(S) > Length(lpFilename) - 1 then
-    Result := Length(lpFilename)
-  else
-    Result := Length(S);  
-end;
-
-function GetModuleHandle(lpModuleName: PChar): HMODULE;
-begin
-  Result := Manager.GetModuleHandleMl(lpModuleName);
-end;
-
 { ============ Hooked BPL Library memory functions ============ }
-{ ====================================================== }
+{ ============================================================= }
 
-function LoadPackage(aSource: TMemoryStream; aLibFileName: String
-{$IFDEF DELPHI2007}
-    ;aValidatePackage: TValidatePackageProc = nil
-{$ENDIF}) : TLibHandle;
+function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
+    TLibHandle;
 begin
-  Result := Manager.LoadPackageMl(aSource, aLibFileName, {$IFDEF DELPHI2007} aValidatePackage {$ELSE} nil {$ENDIF});
+  Result := Manager.LoadPackageMl(aSource, aLibFileName, aValidatePackage);
 end;
 
-procedure UnloadPackage(Module: TLibHandle);
+procedure UnloadPackageMem(Module: TLibHandle);
 begin
   Manager.UnloadPackageMl(Module);
 end;
@@ -218,8 +151,22 @@ procedure UnloadPackageMem(Module: TLibHandle);
 begin
   Manager.UnloadPackageMl(Module);
 end;
-
 {$ENDIF MLHOOKED}
+
+function MlGetGlobalModuleHandle(aLibFileName: String): TLibHandle;
+begin
+  Result := Manager.GetGlobalModuleHandle(aLibFileName);
+end;
+
+function MlIsWinLoaded(hModule: TLibHandle): Boolean;
+begin
+  Result := Manager.IsWinLoaded(hModule);
+end;
+
+procedure MlSetOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
+begin
+  Manager.OnDependencyLoad := aCallbackProc;
+end;
 
 //TODO VG 090714: This method is used only to reset the manager during unit testing. Can be removed
 {$IFDEF _CONSOLE_TESTRUNNER}
@@ -228,21 +175,11 @@ begin
   Manager.Free;
 {$IFDEF MLHOOKED}
   Manager := TMlHookedLibraryManager.Create;
+  Manager.HookAPIs;
 {$ELSE}
   Manager := TMlLibraryManager.Create;
 {$ENDIF}
 end;
-{$ENDIF}
-
-initialization
-{$IFDEF MLHOOKED}
-  Manager := TMlHookedLibraryManager.Create;
-{$ELSE}
-  Manager := TMlLibraryManager.Create;
-{$ENDIF MLHOOKED}
-  Manager.OnDependencyLoad := MlOnDependencyLoad;
-
-finalization
-  Manager.Free;
+{$ENDIF _CONSOLE_TESTRUNNER}
 
 end.
