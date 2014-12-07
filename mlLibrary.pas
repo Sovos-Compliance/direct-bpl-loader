@@ -14,6 +14,7 @@
 *******************************************************************************}
 
 {$I APIMODE.INC}
+{$I DelphiVersion_defines.inc}
 
 unit mlLibrary;
 
@@ -33,7 +34,7 @@ uses
 function LoadLibrary(aSource: TMemoryStream; lpLibFileName: PChar = nil): HMODULE; overload; stdcall;
 
 /// BPL loading functions
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
+function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage: TValidatePackageProc = nil{$ENDIF}):
     TLibHandle; overload;
 procedure UnloadPackageMem(Module: TLibHandle);
 
@@ -49,7 +50,7 @@ function GetModuleFileNameMem(hModule: TLibHandle): String;
 function GetModuleHandleMem(ModuleName: String): TLibHandle;
 
 /// BPL loading functions
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
+function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage: TValidatePackageProc = nil{$ENDIF}):
     TLibHandle; overload;
 procedure UnloadPackageMem(Module: TLibHandle);
 {$ENDIF MLHOOKED}
@@ -81,7 +82,7 @@ end;
 { ============ Hooked BPL Library memory functions ============ }
 { ============================================================= }
 
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
+function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage: TValidatePackageProc = nil{$ENDIF}):
     TLibHandle;
 begin
   Result := Manager.LoadPackageMl(aSource, aLibFileName, aValidatePackage);
@@ -141,7 +142,7 @@ end;
 { ============ BPL Library memory functions ============ }
 { ====================================================== }
 
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil):
+function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage: TValidatePackageProc = nil{$ENDIF}):
     TLibHandle;
 begin
   Result := Manager.LoadPackageMl(aSource, aLibFileName, aValidatePackage);

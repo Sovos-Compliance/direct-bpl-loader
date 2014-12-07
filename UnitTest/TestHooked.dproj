@@ -44,6 +44,12 @@
     <DelphiCompile Include="TestHooked.dpr">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
+    <DCCReference Include="..\mlBaseLoader.pas" />
+    <DCCReference Include="..\mlBPLLoader.pas" />
+    <DCCReference Include="..\mlLibrary.pas" />
+    <DCCReference Include="..\mlManagers.pas" />
+    <DCCReference Include="..\mlPEHeaders.pas" />
+    <DCCReference Include="..\mlTypes.pas" />
     <DCCReference Include="TestConstants.pas" />
     <DCCReference Include="TestmlLibraryManagerHooked.pas" />
   </ItemGroup>
