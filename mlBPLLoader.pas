@@ -81,9 +81,9 @@ type
     procedure ModuleUnloaded(Module: Longword);
   public
     constructor Create; overload;
-    constructor Create(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil); overload;
+    constructor Create(aMem: TMemoryStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc = nil); overload;
     destructor Destroy; override;
-    procedure LoadFromStream(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
+    procedure LoadFromStream(aMem: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
     procedure Unload; overload;
   end;
 
@@ -380,7 +380,8 @@ begin
   inherited;
 end;
 
-constructor TBPLLoader.Create(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
+constructor TBPLLoader.Create(aMem: TMemoryStream; const aLibFileName: String;
+    aValidatePackage: TValidatePackageProc = nil);
 begin
   Create;
 
@@ -398,8 +399,8 @@ begin
   inherited;
 end;
 
-procedure TBPLLoader.LoadFromStream(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc =
-    nil);
+procedure TBPLLoader.LoadFromStream(aMem: TStream; const aLibFileName: String;
+    aValidatePackage: TValidatePackageProc = nil);
 var
   LibModule: PLibModule;
 begin

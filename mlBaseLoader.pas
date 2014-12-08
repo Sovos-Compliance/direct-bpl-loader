@@ -53,7 +53,7 @@ type
     fName     : String;
     fRefCount : Integer;
     fJclImage : TJclPeImage;
-    fStream   : TMemoryStream;
+    fStream   : TStream;
     fOnDependencyLoad: TMlLoadDependentLibraryEvent;
 
     MyDLLProc           : TDLLEntryProc;
@@ -66,7 +66,7 @@ type
 
     // Helper functions
     function ConvertRVAToPointer(RVA: LongWord): Pointer;
-    function ParseStringToNumber(aString: String): LongWord;
+    function ParseStringToNumber(const aString: String): LongWord;
 
     // DLL parsing function
     function ReadImageHeaders  : Boolean;
@@ -79,10 +79,10 @@ type
     function ProcessResources  : Boolean;
     function InitializeLibrary : Boolean;
 
-    function LoadExternalLibrary(LibraryName: String): HINST;
+    function LoadExternalLibrary(const LibraryName: String): HINST;
     function IsValidResHandle(hResInfo: HRSRC): Boolean;
   protected
-    function GetExternalLibraryHandle(LibraryName: String): HINST;
+    function GetExternalLibraryHandle(const LibraryName: String): HINST;
     function GetExternalLibraryName(aLibHandle: HINST): String;
     function GetExternalLibraryProcAddress(aLibHandle: HINST; aProcName: PChar): FARPROC;
   public
@@ -90,10 +90,10 @@ type
     constructor Create; overload;
     destructor Destroy; override;
 
-    procedure LoadFromStream(aMem: TMemoryStream; const aName: String = '');
+    procedure LoadFromStream(aMem: TStream; const aName: String = '');
     procedure Unload;
 
-    function GetFunctionAddress(aName: String): Pointer;
+    function GetFunctionAddress(const aName: String): Pointer;
     function FindResourceMl(lpName, lpType: PChar): HRSRC;
     function LoadResourceMl(hResInfo: HRSRC): HGLOBAL;
     function SizeOfResourceMl(hResInfo: HRSRC): DWORD;
@@ -125,7 +125,7 @@ begin
   end;
 end;
 
-function TMlBaseLoader.ParseStringToNumber(aString: String): LongWord;
+function TMlBaseLoader.ParseStringToNumber(const aString: String): LongWord;
 var
   CharCounter: Integer;
 begin
@@ -490,7 +490,7 @@ end;
 /// Fire the OnDependencyLoad event and load the library from drive or memory(or discard)
 /// depending on the event params
 /// The optionally passed MemStream can be freed after loading from it
-function TMlBaseLoader.LoadExternalLibrary(LibraryName: String): HINST;
+function TMlBaseLoader.LoadExternalLibrary(const LibraryName: String): HINST;
 var
   LoadAction: TLoadAction;
   MemStream : TMemoryStream;
@@ -587,7 +587,8 @@ begin
   end;
 end;
 
-function TMlBaseLoader.GetExternalLibraryHandle(LibraryName: String): HINST;
+function TMlBaseLoader.GetExternalLibraryHandle(const LibraryName: String):
+    HINST;
 var
   I : Integer;
 begin
@@ -675,7 +676,7 @@ begin
 end;
 
 /// Main method to load the library in memory and process the sections, imports, exports, resources, etc
-procedure TMlBaseLoader.LoadFromStream(aMem: TMemoryStream; const aName: String = '');
+procedure TMlBaseLoader.LoadFromStream(aMem: TStream; const aName: String = '');
 begin
   if fLoaded then
     raise EMlLibraryLoadError.Create('There is a loaded library. Please unload it first');
@@ -778,7 +779,7 @@ begin
 end;
 
 /// Return a pointer to an exported function from the loaded image like GetProcAddress API
-function TMlBaseLoader.GetFunctionAddress(aName: String): Pointer;
+function TMlBaseLoader.GetFunctionAddress(const aName: String): Pointer;
 var
   I: Integer;
 begin
