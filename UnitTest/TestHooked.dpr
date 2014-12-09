@@ -22,7 +22,6 @@ uses
   TestmlLibraryManagerHooked in 'TestmlLibraryManagerHooked.pas',
   TestConstants in 'TestConstants.pas',
   mlLibrary in '..\mlLibrary.pas',
-  HJPEImage in '..\HJPEImage.pas',
   mlBaseLoader in '..\mlBaseLoader.pas',
   mlBPLLoader in '..\mlBPLLoader.pas',
   mlManagers in '..\mlManagers.pas',

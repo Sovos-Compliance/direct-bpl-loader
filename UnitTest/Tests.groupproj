@@ -39,15 +39,6 @@
   <Target Name="TestBplA:Make">
     <MSBuild Projects="..\TestDLLs\TestBplA.dproj" Targets="Make" />
   </Target>
-  <Target Name="TestHooked">
-    <MSBuild Projects="TestHooked.dproj" Targets="" />
-  </Target>
-  <Target Name="TestHooked:Clean">
-    <MSBuild Projects="TestHooked.dproj" Targets="Clean" />
-  </Target>
-  <Target Name="TestHooked:Make">
-    <MSBuild Projects="TestHooked.dproj" Targets="Make" />
-  </Target>
   <Target Name="TestBplB_ReqA">
     <MSBuild Projects="..\TestDLLs\TestBplB_ReqA.dproj" Targets="" />
   </Target>
@@ -65,6 +56,15 @@
   </Target>
   <Target Name="TestBplC_ReqB:Make">
     <MSBuild Projects="..\TestDLLs\TestBplC_ReqB.dproj" Targets="Make" />
+  </Target>
+  <Target Name="TestHooked">
+    <MSBuild Projects="TestHooked.dproj" Targets="" />
+  </Target>
+  <Target Name="TestHooked:Clean">
+    <MSBuild Projects="TestHooked.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="TestHooked:Make">
+    <MSBuild Projects="TestHooked.dproj" Targets="Make" />
   </Target>
   <Target Name="TestBplDuplicateUnit">
     <MSBuild Projects="..\TestDLLs\TestBplDuplicateUnit.dproj" Targets="" />
@@ -112,13 +112,13 @@
     <MSBuild Projects="TestSingleBplManual.dproj" Targets="Make" />
   </Target>
   <Target Name="Build">
-    <CallTarget Targets="TestDll;TestBplA;TestHooked;TestBplB_ReqA;TestBplC_ReqB;TestBplDuplicateUnit;TestUnhooked;SingleBplBase;SingleBplUse;TestSingleBplManual" />
+    <CallTarget Targets="TestDll;TestBplA;TestBplB_ReqA;TestBplC_ReqB;TestHooked;TestBplDuplicateUnit;TestUnhooked;SingleBplBase;SingleBplUse;TestSingleBplManual" />
   </Target>
   <Target Name="Clean">
-    <CallTarget Targets="TestDll:Clean;TestBplA:Clean;TestHooked:Clean;TestBplB_ReqA:Clean;TestBplC_ReqB:Clean;TestBplDuplicateUnit:Clean;TestUnhooked:Clean;SingleBplBase:Clean;SingleBplUse:Clean;TestSingleBplManual:Clean" />
+    <CallTarget Targets="TestDll:Clean;TestBplA:Clean;TestBplB_ReqA:Clean;TestBplC_ReqB:Clean;TestHooked:Clean;TestBplDuplicateUnit:Clean;TestUnhooked:Clean;SingleBplBase:Clean;SingleBplUse:Clean;TestSingleBplManual:Clean" />
   </Target>
   <Target Name="Make">
-    <CallTarget Targets="TestDll:Make;TestBplA:Make;TestHooked:Make;TestBplB_ReqA:Make;TestBplC_ReqB:Make;TestBplDuplicateUnit:Make;TestUnhooked:Make;SingleBplBase:Make;SingleBplUse:Make;TestSingleBplManual:Make" />
+    <CallTarget Targets="TestDll:Make;TestBplA:Make;TestBplB_ReqA:Make;TestBplC_ReqB:Make;TestHooked:Make;TestBplDuplicateUnit:Make;TestUnhooked:Make;SingleBplBase:Make;SingleBplUse:Make;TestSingleBplManual:Make" />
   </Target>
   <Import Condition="Exists('$(MSBuildBinPath)\Borland.Group.Targets')" Project="$(MSBuildBinPath)\Borland.Group.Targets" />
 </Project>
