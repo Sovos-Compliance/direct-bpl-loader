@@ -72,7 +72,7 @@ interface
 
   TNameOrID = (niName, niID);
 
-  TExternalLibrarySource = (lsHardDisk, lsMemStream); // lsHardDrive is loaded with the standard APIs, and lsMemStream with the Mem versions
+  TExternalLibrarySource = (lsHardDisk, lsStream); // lsHardDrive is loaded with the standard APIs, and lsMemStream with the Mem versions
   TExternalLibrary = record
     LibrarySource: TExternalLibrarySource;
     LibraryName  : String;

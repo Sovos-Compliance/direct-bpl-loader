@@ -53,7 +53,7 @@ type
     fName     : String;
     fRefCount : Integer;
     fJclImage : TJclPeImage;
-    fStream   : TMemoryStream;
+    fStream   : TStream;
     fOnDependencyLoad: TMlLoadDependentLibraryEvent;
 
     MyDLLProc           : TDLLEntryProc;
@@ -86,11 +86,11 @@ type
     function GetExternalLibraryName(aLibHandle: HINST): String;
     function GetExternalLibraryProcAddress(aLibHandle: HINST; aProcName: PChar): FARPROC;
   public
-    constructor Create(aMem: TMemoryStream; const aName: String = ''); overload;
+    constructor Create(aMem: TStream; const aName: String = ''); overload;
     constructor Create; overload;
     destructor Destroy; override;
 
-    procedure LoadFromStream(aMem: TMemoryStream; const aName: String = '');
+    procedure LoadFromStream(aMem: TStream; const aName: String = '');
     procedure Unload;
 
     function GetFunctionAddress(aName: String): Pointer;
@@ -493,7 +493,7 @@ end;
 function TMlBaseLoader.LoadExternalLibrary(LibraryName: String): HINST;
 var
   LoadAction: TLoadAction;
-  MemStream : TMemoryStream;
+  LibStream : TStream;
   FreeStream: Boolean;
   Source    : TExternalLibrarySource;
 begin
@@ -528,16 +528,16 @@ begin
 {$ELSE}
         Result := LoadLibraryMem(nil, LibraryName); // No need to pass a mem stream. This will just increase the ref count
 {$ENDIF MLHOOKED}
-        Source := lsMemStream;
+        Source := lsStream;
       end
     end else
     begin
       // Not loaded from either Disk or Mem, so call the event and load the library
       LoadAction := laHardDisk;
-      MemStream  := nil;
+      LibStream  := nil;
       FreeStream := false;
       if Assigned(fOnDependencyLoad) then
-        fOnDependencyLoad(fName, LibraryName, LoadAction, MemStream, FreeStream);
+        fOnDependencyLoad(fName, LibraryName, LoadAction, LibStream, FreeStream);
 
       Source := lsHardDisk;
       case LoadAction of
@@ -555,23 +555,23 @@ begin
                 [LibraryName, SysErrorMessage(GetLastError)]);
             Source := lsHardDisk;
           end;
-        laMemStream:
+        laStream:
           begin
             // Load the external as a BPL or a DLL. See comment above
 {$IFDEF MLHOOKED}
             if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-              Result := LoadPackageMem(MemStream, LibraryName)
+              Result := LoadPackageMem(LibStream, LibraryName)
             else
-              Result := LoadLibrary(MemStream, PChar(LibraryName));
+              Result := LoadLibrary(LibStream, PChar(LibraryName));
 {$ELSE}
             if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-              Result := LoadPackageMem(MemStream, LibraryName)
+              Result := LoadPackageMem(LibStream, LibraryName)
             else
-              Result := LoadLibraryMem(MemStream, LibraryName);
+              Result := LoadLibraryMem(LibStream, LibraryName);
 {$ENDIF MLHOOKED}
-            Source := lsMemStream;
+            Source := lsStream;
             if FreeStream then
-              FreeAndNil(MemStream);
+              FreeAndNil(LibStream);
           end;
         laDiscard:  //VG 010814: TODO: Is this really necessary? What usage would it have?
           begin
@@ -651,7 +651,7 @@ begin
   end;
 end;
 
-constructor TMlBaseLoader.Create(aMem: TMemoryStream; const aName: String = '');
+constructor TMlBaseLoader.Create(aMem: TStream; const aName: String = '');
 begin
   Create;
 
@@ -676,7 +676,7 @@ begin
 end;
 
 /// Main method to load the library in memory and process the sections, imports, exports, resources, etc
-procedure TMlBaseLoader.LoadFromStream(aMem: TMemoryStream; const aName: String = '');
+procedure TMlBaseLoader.LoadFromStream(aMem: TStream; const aName: String = '');
 begin
   if fLoaded then
     raise EMlLibraryLoadError.Create('There is a loaded library. Please unload it first');

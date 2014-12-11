@@ -16,10 +16,10 @@ type
   private
     fMemStream: TMemoryStream;
     fEventCalled: Boolean;
-    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream;
-        var aFreeStream: Boolean);
-    procedure TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-        aMemStream: TMemoryStream; var aFreeStream: Boolean);
+    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream: TStream; var
+        aFreeStream: Boolean);
+    procedure TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
+        TStream; var aFreeStream: Boolean);
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -48,13 +48,13 @@ type
 implementation
 
 procedure TestLibraryManagerHooked.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-    aMemStream: TMemoryStream; var aFreeStream: Boolean);
+    aStream: TStream; var aFreeStream: Boolean);
 begin
   fEventCalled := true;
 end;
 
 procedure TestLibraryManagerHooked.TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction:
-    TLoadAction; var aMemStream: TMemoryStream; var aFreeStream: Boolean);
+    TLoadAction; var aStream: TStream; var aFreeStream: Boolean);
 var
   SourceFile: String;
 begin
@@ -66,9 +66,9 @@ begin
     SourceFile := BPL_PATH_C;
   if SourceFile <> '' then
   begin
-    aLoadAction := laMemStream;
-    aMemStream := TMemoryStream.Create;
-    aMemStream.LoadFromFile(SourceFile);
+    aLoadAction := laStream;
+    aStream := TMemoryStream.Create;
+    TMemoryStream(aStream).LoadFromFile(SourceFile);
   end;
 end;
 

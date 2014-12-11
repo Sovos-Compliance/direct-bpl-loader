@@ -31,16 +31,16 @@ uses
 
 {$IFDEF MLHOOKED}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
-function LoadLibrary(aSource: TMemoryStream; lpLibFileName: PChar = nil): HMODULE; overload; stdcall;
+function LoadLibrary(aStream: TStream; lpLibFileName: PChar = nil): HMODULE; overload; stdcall;
 
 /// BPL loading functions
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage: TValidatePackageProc = nil{$ENDIF}):
-    TLibHandle; overload;
+function LoadPackageMem(aStream: TStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+    TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
 procedure UnloadPackageMem(Module: TLibHandle);
 
 {$ELSE}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
-function LoadLibraryMem(aSource: TMemoryStream; aLibFileName: String = ''): TLibHandle;
+function LoadLibraryMem(aStream: TStream; aLibFileName: String = ''): TLibHandle;
 procedure FreeLibraryMem(hModule: TLibHandle);
 function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
 function FindResourceMem(hModule: TLibHandle; lpName, lpType: PChar): HRSRC;
@@ -50,8 +50,8 @@ function GetModuleFileNameMem(hModule: TLibHandle): String;
 function GetModuleHandleMem(ModuleName: String): TLibHandle;
 
 /// BPL loading functions
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage: TValidatePackageProc = nil{$ENDIF}):
-    TLibHandle; overload;
+function LoadPackageMem(aStream: TStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+    TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
 procedure UnloadPackageMem(Module: TLibHandle);
 {$ENDIF MLHOOKED}
 
@@ -74,18 +74,18 @@ const
 { ============ Hooked DLL Library memory functions ============ }
 { ============================================================= }
 
-function LoadLibrary(aSource: TMemoryStream; lpLibFileName: PChar = nil): HMODULE;
+function LoadLibrary(aStream: TStream; lpLibFileName: PChar = nil): HMODULE;
 begin
-  Result := Manager.LoadLibraryMl(aSource, lpLibFileName);
+  Result := Manager.LoadLibraryMl(aStream, lpLibFileName);
 end;
 
 { ============ Hooked BPL Library memory functions ============ }
 { ============================================================= }
 
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage: TValidatePackageProc = nil{$ENDIF}):
-    TLibHandle;
+function LoadPackageMem(aStream: TStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+    TValidatePackageProc = nil{$ENDIF}): TLibHandle;
 begin
-  Result := Manager.LoadPackageMl(aSource, aLibFileName, aValidatePackage);
+  Result := Manager.LoadPackageMl(aStream, aLibFileName, aValidatePackage);
 end;
 
 procedure UnloadPackageMem(Module: TLibHandle);
@@ -98,9 +98,9 @@ end;
 { ============ Unhooked DLL Library memory functions ============ }
 { =============================================================== }
 
-function LoadLibraryMem(aSource: TMemoryStream; aLibFileName: String = ''): TLibHandle;
+function LoadLibraryMem(aStream: TStream; aLibFileName: String = ''): TLibHandle;
 begin
-  Result := Manager.LoadLibraryMl(aSource, aLibFileName);
+  Result := Manager.LoadLibraryMl(aStream, aLibFileName);
 end;
 
 procedure FreeLibraryMem(hModule: TLibHandle);
@@ -142,10 +142,10 @@ end;
 { ============ BPL Library memory functions ============ }
 { ====================================================== }
 
-function LoadPackageMem(aSource: TMemoryStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage: TValidatePackageProc = nil{$ENDIF}):
-    TLibHandle;
+function LoadPackageMem(aStream: TStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+    TValidatePackageProc = nil{$ENDIF}): TLibHandle;
 begin
-  Result := Manager.LoadPackageMl(aSource, aLibFileName, aValidatePackage);
+  Result := Manager.LoadPackageMl(aStream, aLibFileName, aValidatePackage);
 end;
 
 procedure UnloadPackageMem(Module: TLibHandle);

@@ -39,15 +39,15 @@ type
     function GetLibs(aIndex: Integer): TMlBaseLoader;
     function LibraryIndexByHandle(aHandle: TLibHandle): Integer;
     function LibraryIndexByName(aName: String): Integer;
-    procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream:
-        TMemoryStream; var aFreeStream: Boolean);
+    procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
+        TStream; var aFreeStream: Boolean);
     property Libs[aIndex: Integer]: TMlBaseLoader read GetLibs;
   public
     constructor Create;
     destructor Destroy; override;
     function GetGlobalModuleHandle(aModuleName: String): TLibHandle;
     function IsWinLoaded(aHandle: TLibHandle): Boolean; virtual;
-    function LoadLibraryMl(aSource: TMemoryStream; aLibFileName: String): TLibHandle; virtual;
+    function LoadLibraryMl(aStream: TStream; aLibFileName: String): TLibHandle; virtual;
     procedure FreeLibraryMl(aHandle: TLibHandle); virtual;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; virtual;
     function FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC; virtual;
@@ -56,8 +56,7 @@ type
     function GetModuleFileNameMl(aHandle: TLibHandle): String; virtual;
     function GetModuleHandleMl(aModuleName: String): TLibHandle; virtual;
 
-    function LoadPackageMl(aSource: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc):
-        TLibHandle;
+    function LoadPackageMl(aStream: TStream; aLibFileName: String; aValidatePackage: TValidatePackageProc): TLibHandle;
     procedure UnloadPackageMl(aHandle: TLibHandle);
     property OnDependencyLoad: TMlLoadDependentLibraryEvent read fOnDependencyLoad write fOnDependencyLoad;
   end;
@@ -81,7 +80,7 @@ type
     procedure HookAPIs;
     function IsWinLoaded(aHandle: TLibHandle): Boolean; override;
     function LoadLibraryMl(lpLibFileName: PChar): TLibHandle; reintroduce; overload;
-    function LoadLibraryMl(aSource: TMemoryStream; aLibFileName: String): TLibHandle; overload; override;
+    function LoadLibraryMl(aStream: TStream; aLibFileName: String): TLibHandle; overload; override;
     procedure FreeLibraryMl(aHandle: TLibHandle); override;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; override;
     function FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC; override;
@@ -144,10 +143,10 @@ end;
 
 /// This method is assigned to each TmlBaseLoader and forwards the event to the global MlOnDependencyLoad procedure if one is assigned
 procedure TMlLibraryManager.DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-    aMemStream: TMemoryStream; var aFreeStream: Boolean);
+    aStream: TStream; var aFreeStream: Boolean);
 begin
   if Assigned(fOnDependencyLoad) then
-    fOnDependencyLoad(aLibName, aDependentLib, aLoadAction, aMemStream, aFreeStream);
+    fOnDependencyLoad(aLibName, aDependentLib, aLoadAction, aStream, aFreeStream);
 end;
 
 constructor TMlLibraryManager.Create;
@@ -183,7 +182,7 @@ end;
 
 /// LoadLibraryMem: aName is compared to the loaded libraries and if found the
 /// reference count is incremented. If the aName is empty or not found the library is loaded
-function TMlLibraryManager.LoadLibraryMl(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
+function TMlLibraryManager.LoadLibraryMl(aStream: TStream; aLibFileName: String): TLibHandle;
 var
   Loader: TMlBaseLoader;
   Index: Integer;
@@ -204,7 +203,7 @@ begin
       try
         fLibs.Add(Loader); // It is added to the list first because loading checks its own handle (in LoadPackageMl)
         Loader.OnDependencyLoad := DoDependencyLoad;
-        Loader.LoadFromStream(aSource, aLibFileName);
+        Loader.LoadFromStream(aStream, aLibFileName);
         Result := Loader.Handle;
       except
         fLibs.Remove(Loader);
@@ -311,7 +310,7 @@ end;
 
 /// Function to emulate the LoadPackage from a stream
 /// Source is taken from the original Delphi RTL functions LoadPackage, InitializePackage in SysUtils
-function TMlLibraryManager.LoadPackageMl(aSource: TMemoryStream; aLibFileName: String; aValidatePackage:
+function TMlLibraryManager.LoadPackageMl(aStream: TStream; aLibFileName: String; aValidatePackage:
     TValidatePackageProc): TLibHandle;
 var
   Loader: TBPLLoader;
@@ -333,7 +332,7 @@ begin
       try
         fLibs.Add(Loader); // It is added to the list first because loading checks its own handle (in LoadPackageMl)
         Loader.OnDependencyLoad := DoDependencyLoad;
-        Loader.LoadFromStream(aSource, aLibFileName, aValidatePackage);
+        Loader.LoadFromStream(aStream, aLibFileName, aValidatePackage);
         Result := Loader.Handle;
       except
         fLibs.Remove(Loader);
@@ -474,9 +473,9 @@ begin
   Win32Check(Result <> 0);
 end;
 
-function TMlHookedLibraryManager.LoadLibraryMl(aSource: TMemoryStream; aLibFileName: String): TLibHandle;
+function TMlHookedLibraryManager.LoadLibraryMl(aStream: TStream; aLibFileName: String): TLibHandle;
 begin
-  Result := inherited LoadLibraryMl(aSource, aLibFileName);
+  Result := inherited LoadLibraryMl(aStream, aLibFileName);
 end;
 
 procedure TMlHookedLibraryManager.FreeLibraryMl(aHandle: TLibHandle);
