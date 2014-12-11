@@ -37,7 +37,6 @@ type
     fLibs: TList;
     fOnDependencyLoad: TMlLoadDependentLibraryEvent;
     function GetLibs(aIndex: Integer): TMlBaseLoader;
-    function GetNewHandle: TLibHandle;
     function LibraryIndexByHandle(aHandle: TLibHandle): Integer;
     function LibraryIndexByName(aName: String): Integer;
     procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream:
@@ -102,9 +101,6 @@ var
 
 implementation
 
-const
-  BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begins. Must be >= 1
-
 { TMlLibraryManager }
 
 function TMlLibraryManager.GetLibs(aIndex: Integer): TMlBaseLoader;
@@ -112,25 +108,6 @@ begin
   if (aIndex < 0) or (aIndex >= fLibs.Count) then
     raise Exception.Create('Library index out of bounds');
   Result := fLibs[aIndex];
-end;
-
-/// Generate a unique handle that will be returned as a library identifier
-function TMlLibraryManager.GetNewHandle: TLibHandle;
-var
-  I: Integer;
-  Unique: Boolean;
-begin
-  Result := BASE_HANDLE;
-  repeat
-    Unique := true;
-    for I := 0 to fLibs.Count - 1 do
-      if TMlBaseLoader(fLibs[I]).Handle = Result then
-      begin
-        Unique := false;
-        Inc(Result);
-        Break;
-      end;
-  until Unique;
 end;
 
 /// Helper method to find the internal index of a loaded library given its handle
@@ -175,8 +152,6 @@ end;
 
 constructor TMlLibraryManager.Create;
 begin
-  Assert(BASE_HANDLE > 0, 'The base handle value must be greater than zero');
-
   inherited;
   fLibs := TList.Create;
   InitializeCriticalSection(fCrit);
@@ -227,10 +202,8 @@ begin
       // Or load the library if it is a new one
       Loader := TMlBaseLoader.Create;
       try
-        fLibs.Add(Loader); // It is added first to reserve the handle given
+        fLibs.Add(Loader); // It is added to the list first because loading checks its own handle (in LoadPackageMl)
         Loader.OnDependencyLoad := DoDependencyLoad;
-        Loader.Handle := GetNewHandle;
-        Loader.RefCount := 1;
         Loader.LoadFromStream(aSource, aLibFileName);
         Result := Loader.Handle;
       except
@@ -358,10 +331,8 @@ begin
       // Or load the library if it is a new one
       Loader := TBPLLoader.Create;
       try
-        fLibs.Add(Loader); // It is added first to reserve the handle given
+        fLibs.Add(Loader); // It is added to the list first because loading checks its own handle (in LoadPackageMl)
         Loader.OnDependencyLoad := DoDependencyLoad;
-        Loader.Handle := GetNewHandle; // The handle must be assigned before LoadFromStream, because it is used in RegisterModule
-        Loader.RefCount := 1;
         Loader.LoadFromStream(aSource, aLibFileName, aValidatePackage);
         Result := Loader.Handle;
       except

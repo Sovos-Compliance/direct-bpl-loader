@@ -98,9 +98,9 @@ type
     function LoadResourceMl(hResInfo: HRSRC): HGLOBAL;
     function SizeOfResourceMl(hResInfo: HRSRC): DWORD;
 
-    property Loaded          : Boolean                      read fLoaded           write fLoaded;
+    property Loaded          : Boolean                      read fLoaded;
     property ImageBase       : Pointer                      read fImageBase;
-    property Handle          : TLibHandle                   read fHandle           write fHandle;
+    property Handle          : TLibHandle                   read fHandle;
     property Name            : String                       read fName;
     property RefCount        : Integer                      read fRefCount         write fRefCount;
     property OnDependencyLoad: TMlLoadDependentLibraryEvent read fOnDependencyLoad write fOnDependencyLoad;
@@ -662,6 +662,7 @@ end;
 constructor TMlBaseLoader.Create;
 begin
   inherited Create;
+  fRefCount := 1;
   fJclImage := TJclPeImage.Create;
 end;
 
@@ -701,6 +702,7 @@ begin
                   if ProtectSections then
                     fLoaded := InitializeLibrary;
   fStream := nil;
+  fHandle := Cardinal(fImageBase);
 
   if fLoaded then
     fJclImage.AttachLoadedModule(Cardinal(fImageBase))

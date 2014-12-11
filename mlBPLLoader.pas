@@ -400,8 +400,6 @@ end;
 
 procedure TBPLLoader.LoadFromStream(aMem: TMemoryStream; aLibFileName: String; aValidatePackage: TValidatePackageProc =
     nil);
-var
-  LibModule: PLibModule;
 begin
   if aLibFileName = '' then
     raise EMlLibraryLoadError.Create('The package file name can not be empty');
@@ -410,17 +408,9 @@ begin
     raise EMlLibraryLoadError.CreateFmt('The %s package is already loaded from disk with the regular LoadPackage.' + #13#10 +
       ' Loading it again from memory will result in unpredicted behaviour.', [aLibFileName]);
 
-  Assert(Handle <> 0, 'The Handle of a package must be assigned before loading it from a stream. It is used in RegisterModule');
-
   inherited LoadFromStream(aMem, aLibFileName);
   try
-    // VG 040814: TODO: RegisterModule should be done automatically when the BPL is loaded from memory in the BaseLoader
-    // Why doesn't it happen? Check and move this call in the base class.
-    New(LibModule);
-    ZeroMemory(LibModule, SizeOf(TLibModule));
-    LibModule.Instance := Handle;
-    RegisterModule(LibModule);
-
+    Assert(Handle <> 0, 'The Handle of a package must be assigned before loading it from a stream. It is used in RegisterModule');
     InitializePackage(Cardinal(Handle), aValidatePackage);
     fPackageInitialized := true;
   except

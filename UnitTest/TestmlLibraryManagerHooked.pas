@@ -259,6 +259,7 @@ begin
   Len := MAX_PATH;
   OutputDebugString(PChar(IntToStr(HInstance)));
   SetLength(ModName, GetModuleFileName(HInstance, PChar(ModName), Len));
+  OutputDebugString(PChar(ModName));
   Result := True;
 end;
 
