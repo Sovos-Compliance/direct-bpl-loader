@@ -81,9 +81,9 @@ type
     procedure ModuleUnloaded(Module: Longword);
   public
     constructor Create; overload;
-    constructor Create(aMem: TStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil); overload;
+    constructor Create(aMem: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc = nil); overload;
     destructor Destroy; override;
-    procedure LoadFromStream(aMem: TStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
+    procedure LoadFromStream(aMem: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
     procedure Unload; overload;
   end;
 
@@ -380,7 +380,7 @@ begin
   inherited;
 end;
 
-constructor TBPLLoader.Create(aMem: TStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
+constructor TBPLLoader.Create(aMem: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
 begin
   Create;
 
@@ -403,7 +403,8 @@ begin
   end;
 end;
 
-procedure TBPLLoader.LoadFromStream(aMem: TStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
+procedure TBPLLoader.LoadFromStream(aMem: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc =
+    nil);
 begin
   if aLibFileName = '' then
     raise EMlLibraryLoadError.Create('The package file name can not be empty');

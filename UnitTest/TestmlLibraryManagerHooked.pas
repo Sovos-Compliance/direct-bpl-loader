@@ -245,7 +245,7 @@ var
   TestClass: TPersistentClass;
 begin
   fMemStream.LoadFromFile(BPL_PATH_A);
-  LoadPackageMem(fMemStream, BPL_PATH_A);
+  LoadPackage(fMemStream, BPL_PATH_A);
   TestClass := GetClass(TEST_CLASS_NAME_A);
   CheckNotNull(TObject(TestClass), 'The class could not be loaded from the BPL. Check if project is built with Runtime packages');
 end;
@@ -256,7 +256,7 @@ var
 begin
   MlSetOnLoadCallback(TestEventLoadActionFromMem);
   fMemStream.LoadFromFile(BPL_PATH_C);
-  LoadPackageMem(fMemStream, BPL_PATH_C);
+  LoadPackage(fMemStream, BPL_PATH_C);
   TestClass := GetClass(TEST_CLASS_NAME_C);
   CheckNotNull(TObject(TestClass),
     Format('The "%s" class could not be loaded from the BPL. Check if project is built with Runtime packages', [TEST_CLASS_NAME_C]));
@@ -279,7 +279,7 @@ end;
 procedure TestLibraryManagerHooked.TestEnumModules;
 begin
   fMemStream.LoadFromFile(BPL_PATH_A);
-  LoadPackageMem(fMemStream, BPL_PATH_A);
+  LoadPackage(fMemStream, BPL_PATH_A);
   EnumModules(EnumModule, nil);
   // No need to check conditions at the moment. EnumModule should be able to list all modules and get their names without exceptions
 end;

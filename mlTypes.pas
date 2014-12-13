@@ -47,6 +47,8 @@ type
   TSizeofResourceFunc    = function (hModule: HMODULE; hResInfo: HRSRC)              : DWORD; stdcall;
   TGetModuleFileNameFunc = function (hModule: HINST; lpFilename: PChar; nSize: DWORD): DWORD; stdcall;
   TGetModuleHandleFunc   = function (lpModuleName: PChar)                            : HMODULE; stdcall;
+  TLoadPackageFunc       = function (const Name: string; AValidatePackage: TValidatePackageProc = nil): HMODULE;
+  TUnloadPackageProc     = procedure (Module: HMODULE);
 
 
 implementation

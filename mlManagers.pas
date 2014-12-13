@@ -38,26 +38,27 @@ type
     fOnDependencyLoad: TMlLoadDependentLibraryEvent;
     function GetLibs(aIndex: Integer): TMlBaseLoader;
     function LibraryIndexByHandle(aHandle: TLibHandle): Integer;
-    function LibraryIndexByName(aName: String): Integer;
+    function LibraryIndexByName(const aLibName: String): Integer;
     procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
         TStream; var aFreeStream: Boolean);
     property Libs[aIndex: Integer]: TMlBaseLoader read GetLibs;
   public
     constructor Create;
     destructor Destroy; override;
-    function GetGlobalModuleHandle(aModuleName: String): TLibHandle;
+    function GetGlobalModuleHandle(const aModuleName: String): TLibHandle;
     function IsWinLoaded(aHandle: TLibHandle): Boolean; virtual;
-    function LoadLibraryMl(aStream: TStream; aLibFileName: String): TLibHandle; virtual;
+    function LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle; virtual;
     procedure FreeLibraryMl(aHandle: TLibHandle); virtual;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; virtual;
     function FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC; virtual;
     function LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL; virtual;
     function SizeOfResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): DWORD; virtual;
     function GetModuleFileNameMl(aHandle: TLibHandle): String; virtual;
-    function GetModuleHandleMl(aModuleName: String): TLibHandle; virtual;
+    function GetModuleHandleMl(const aModuleName: String): TLibHandle; virtual;
 
-    function LoadPackageMl(aStream: TStream; aLibFileName: String; aValidatePackage: TValidatePackageProc): TLibHandle;
-    procedure UnloadPackageMl(aHandle: TLibHandle);
+    function LoadPackageMl(aStream: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc):
+        TLibHandle; virtual;
+    procedure UnloadPackageMl(aHandle: TLibHandle); virtual;
     property OnDependencyLoad: TMlLoadDependentLibraryEvent read fOnDependencyLoad write fOnDependencyLoad;
   end;
 
@@ -73,6 +74,8 @@ type
     fSizeofResourceOrig   : TSizeofResourceFunc;
     fGetModuleFileNameOrig: TGetModuleFileNameFunc;
     fGetModuleHandleOrig  : TGetModuleHandleFunc;
+    fLoadPackageOrig      : TLoadPackageFunc;
+    fUnloadPackageOrig    : TUnloadPackageProc;
 
   public
     constructor Create;
@@ -80,14 +83,19 @@ type
     procedure HookAPIs;
     function IsWinLoaded(aHandle: TLibHandle): Boolean; override;
     function LoadLibraryMl(lpLibFileName: PChar): TLibHandle; reintroduce; overload;
-    function LoadLibraryMl(aStream: TStream; aLibFileName: String): TLibHandle; overload; override;
+    function LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle; overload; override;
     procedure FreeLibraryMl(aHandle: TLibHandle); override;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; override;
     function FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC; override;
     function LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL; override;
     function SizeOfResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): DWORD; override;
     function GetModuleFileNameMl(aHandle: TLibHandle): String; override;
-    function GetModuleHandleMl(aModuleName: String): TLibHandle; override;
+    function GetModuleHandleMl(const aModuleName: String): TLibHandle; override;
+    function LoadPackageMl(const aLibFileName: String; aValidatePackage: TValidatePackageProc): TLibHandle; reintroduce;
+        overload;
+    function LoadPackageMl(aStream: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc):
+        TLibHandle; overload; override;
+    procedure UnloadPackageMl(aHandle: TLibHandle); override;
   end;
 {$ENDIF MLHOOKED}
 
@@ -126,15 +134,15 @@ end;
 
 /// Helper method to find the internal index of a loaded library given its handle
 /// Used when loading a library to check if loaded already
-function TMlLibraryManager.LibraryIndexByName(aName: String): Integer;
+function TMlLibraryManager.LibraryIndexByName(const aLibName: String): Integer;
 var
   I: Integer;
 begin
   Result := -1;
-  if aName = '' then
+  if aLibName = '' then
     Exit;
   for I := 0 to fLibs.Count - 1 do
-    if SameText(Libs[I].Name, ExtractFileName(aName)) then
+    if SameText(Libs[I].Name, ExtractFileName(aLibName)) then
     begin
       Result := I;
       Exit;
@@ -184,7 +192,7 @@ begin
 end;
 
 /// Return the handle of a loaded module, regardless if it is from Mem or Disk
-function TMlLibraryManager.GetGlobalModuleHandle(aModuleName: String): TLibHandle;
+function TMlLibraryManager.GetGlobalModuleHandle(const aModuleName: String): TLibHandle;
 begin
   Result := GetModuleHandle(PChar(aModuleName));
   if Result = 0 then
@@ -200,7 +208,7 @@ end;
 
 /// LoadLibraryMem: aName is compared to the loaded libraries and if found the
 /// reference count is incremented. If the aName is empty or not found the library is loaded
-function TMlLibraryManager.LoadLibraryMl(aStream: TStream; aLibFileName: String): TLibHandle;
+function TMlLibraryManager.LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle;
 var
   Loader: TMlBaseLoader;
   Index: Integer;
@@ -315,7 +323,7 @@ begin
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
-function TMlLibraryManager.GetModuleHandleMl(aModuleName: String): TLibHandle;
+function TMlLibraryManager.GetModuleHandleMl(const aModuleName: String): TLibHandle;
 var
   Index: Integer;
 begin
@@ -328,7 +336,7 @@ end;
 
 /// Function to emulate the LoadPackage from a stream
 /// Source is taken from the original Delphi RTL functions LoadPackage, InitializePackage in SysUtils
-function TMlLibraryManager.LoadPackageMl(aStream: TStream; aLibFileName: String; aValidatePackage:
+function TMlLibraryManager.LoadPackageMl(aStream: TStream; const aLibFileName: String; aValidatePackage:
     TValidatePackageProc): TLibHandle;
 var
   Loader: TBPLLoader;
@@ -444,7 +452,26 @@ begin
   Result := Manager.GetModuleHandleMl(lpModuleName);
 end;
 
+function LoadPackageHooked(const Name: string; AValidatePackage: TValidatePackageProc): HMODULE;
+begin
+  Result := Manager.LoadPackageMl(Name, AValidatePackage);
+end;
+
+procedure UnloadPackageHooked(Module: HMODULE);
+begin
+  Manager.UnloadPackageMl(Module);
+end;
+
 procedure TMlHookedLibraryManager.HookAPIs;
+const
+{$IFDEF VER130}
+  RTL_NAME = 'vcl50.bpl';
+{$ENDIF}
+{$IFDEF VER185}
+  RTL_NAME = 'rtl100.bpl';
+{$ENDIF}
+  LOAD_NAME   = '@Sysutils@LoadPackage$qqrx17System@AnsiString';
+  UNLOAD_NAME = '@Sysutils@UnloadPackage$qqrui';
 var
   ModuleBase: Pointer;
 begin
@@ -457,6 +484,9 @@ begin
   fHooks.HookImport(ModuleBase, kernel32, 'GetModuleFileNameA', Pointer(@GetModuleFileNameHooked), Pointer(@fGetModuleFileNameOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'GetModuleHandleA',   Pointer(@GetModuleHandleHooked),   Pointer(@fGetModuleHandleOrig));
   fHooks.HookImport(ModuleBase, kernel32, 'GetProcAddress',     Pointer(@GetProcAddressHooked),    Pointer(@fGetProcAddressOrig));
+  fHooks.HookImport(ModuleBase, kernel32, 'GetProcAddress',     Pointer(@GetProcAddressHooked),    Pointer(@fGetProcAddressOrig));
+  fHooks.HookImport(ModuleBase, RTL_NAME, LOAD_NAME,            Pointer(@LoadPackageHooked),       Pointer(@fLoadPackageOrig));
+  fHooks.HookImport(ModuleBase, RTL_NAME, UNLOAD_NAME,          Pointer(@UnloadPackageHooked),     Pointer(@fUnloadPackageOrig));
 end;
 
 constructor TMlHookedLibraryManager.Create;
@@ -491,7 +521,7 @@ begin
   Win32Check(Result <> 0);
 end;
 
-function TMlHookedLibraryManager.LoadLibraryMl(aStream: TStream; aLibFileName: String): TLibHandle;
+function TMlHookedLibraryManager.LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle;
 begin
   Result := inherited LoadLibraryMl(aStream, aLibFileName);
 end;
@@ -558,12 +588,33 @@ begin
     Result := inherited GetModuleFileNameMl(aHandle);
 end;
 
-function TMlHookedLibraryManager.GetModuleHandleMl(aModuleName: String): TLibHandle;
+function TMlHookedLibraryManager.GetModuleHandleMl(const aModuleName: String): TLibHandle;
 begin
   Result := fGetModuleHandleOrig(PChar(aModuleName));
   if Result = 0 then
     Result := inherited GetModuleHandleMl(aModuleName);
 end;
+
+function TMlHookedLibraryManager.LoadPackageMl(const aLibFileName: String; aValidatePackage: TValidatePackageProc):
+    TLibHandle;
+begin
+  Result := fLoadPackageOrig(aLibFileName, aValidatePackage);
+end;
+
+function TMlHookedLibraryManager.LoadPackageMl(aStream: TStream; const aLibFileName: String; aValidatePackage:
+    TValidatePackageProc): TLibHandle;
+begin
+  Result := inherited LoadPackageMl(aStream, aLibFileName, aValidatePackage);
+end;
+
+procedure TMlHookedLibraryManager.UnloadPackageMl(aHandle: TLibHandle);
+begin
+  if IsWinLoaded(aHandle) then
+    fUnloadPackageOrig(aHandle)
+  else
+    inherited;
+end;
+
 {$ENDIF MLHOOKED}
 
 initialization

@@ -31,32 +31,32 @@ uses
 
 {$IFDEF MLHOOKED}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
-function LoadLibrary(aStream: TStream; lpLibFileName: PChar = nil): HMODULE; overload; stdcall;
+function LoadLibrary(aStream: TStream; lpLibFileName: PChar = nil): HMODULE; overload;
+function LoadLibrary(aStream: TStream; const aLibFileName: String): HMODULE; overload;
 
 /// BPL loading functions
-function LoadPackageMem(aStream: TStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+function LoadPackage(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
-procedure UnloadPackageMem(Module: TLibHandle);
 
 {$ELSE}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
-function LoadLibraryMem(aStream: TStream; aLibFileName: String = ''): TLibHandle;
+function LoadLibraryMem(aStream: TStream; const aLibFileName: String = ''): TLibHandle;
 procedure FreeLibraryMem(hModule: TLibHandle);
 function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
 function FindResourceMem(hModule: TLibHandle; lpName, lpType: PChar): HRSRC;
 function LoadResourceMem(hModule: TLibHandle; hResInfo: HRSRC): HGLOBAL;
 function SizeOfResourceMem(hModule: TLibHandle; hResInfo: HRSRC): DWORD;
 function GetModuleFileNameMem(hModule: TLibHandle): String;
-function GetModuleHandleMem(ModuleName: String): TLibHandle;
+function GetModuleHandleMem(const ModuleName: String): TLibHandle;
 
 /// BPL loading functions
-function LoadPackageMem(aStream: TStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+function LoadPackageMem(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
 procedure UnloadPackageMem(Module: TLibHandle);
 {$ENDIF MLHOOKED}
 
 /// Helper functions to check module load status and set a callback function
-function MlGetGlobalModuleHandle(aLibFileName: String): TLibHandle;
+function MlGetGlobalModuleHandle(const aLibFileName: String): TLibHandle;
 function MlIsWinLoaded(hModule: TLibHandle): Boolean; overload;
 procedure MlSetOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
 
@@ -67,9 +67,6 @@ procedure UnloadAllLibraries;
 
 implementation
 
-const
-  BASE_HANDLE = $1;  // The minimum value where the allocation of TLibHandle values begins
-
 {$IFDEF MLHOOKED}
 { ============ Hooked DLL Library memory functions ============ }
 { ============================================================= }
@@ -79,18 +76,18 @@ begin
   Result := Manager.LoadLibraryMl(aStream, lpLibFileName);
 end;
 
+function LoadLibrary(aStream: TStream; const aLibFileName: String): HMODULE;
+begin
+  Result := Manager.LoadLibraryMl(aStream, aLibFileName);
+end;
+
 { ============ Hooked BPL Library memory functions ============ }
 { ============================================================= }
 
-function LoadPackageMem(aStream: TStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+function LoadPackage(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle;
 begin
   Result := Manager.LoadPackageMl(aStream, aLibFileName, aValidatePackage);
-end;
-
-procedure UnloadPackageMem(Module: TLibHandle);
-begin
-  Manager.UnloadPackageMl(Module);
 end;
 
 
@@ -98,7 +95,7 @@ end;
 { ============ Unhooked DLL Library memory functions ============ }
 { =============================================================== }
 
-function LoadLibraryMem(aStream: TStream; aLibFileName: String = ''): TLibHandle;
+function LoadLibraryMem(aStream: TStream; const aLibFileName: String = ''): TLibHandle;
 begin
   Result := Manager.LoadLibraryMl(aStream, aLibFileName);
 end;
@@ -133,7 +130,7 @@ begin
   Result := Manager.GetModuleFileNameMl(hModule);
 end;
 
-function GetModuleHandleMem(ModuleName: String): TLibHandle;
+function GetModuleHandleMem(const ModuleName: String): TLibHandle;
 begin
   Result := Manager.GetModuleHandleMl(ModuleName);
 end;
@@ -142,7 +139,7 @@ end;
 { ============ BPL Library memory functions ============ }
 { ====================================================== }
 
-function LoadPackageMem(aStream: TStream; aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+function LoadPackageMem(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle;
 begin
   Result := Manager.LoadPackageMl(aStream, aLibFileName, aValidatePackage);
@@ -154,7 +151,7 @@ begin
 end;
 {$ENDIF MLHOOKED}
 
-function MlGetGlobalModuleHandle(aLibFileName: String): TLibHandle;
+function MlGetGlobalModuleHandle(const aLibFileName: String): TLibHandle;
 begin
   Result := Manager.GetGlobalModuleHandle(aLibFileName);
 end;
