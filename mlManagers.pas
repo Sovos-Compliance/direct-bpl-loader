@@ -157,9 +157,27 @@ begin
 end;
 
 destructor TMlLibraryManager.Destroy;
+var
+  Counter: Integer;
 begin
+  //VG 131214: This should only be called at the program termination. If the usage is proper, all the libs should
+  // have been freed by the user. In case any are left, try to free them forcefully, which could raise exceptions
+  // Try to free them as gracefully as possible, without knowing which one requires which, so unload them one at a time
+  // from the begining of the list to the end, and then repeat
   while fLibs.Count > 0 do
-    FreeLibraryMl(Libs[0].Handle);
+  begin
+    Counter := 0;
+    while Counter < fLibs.Count do
+    begin
+      try
+        FreeLibraryMl(Libs[Counter].Handle);
+      except
+        // Exceptions could be logged if there is some logging library
+      end;
+      Inc(Counter);
+    end;
+  end;
+
   fLibs.Free;
   DeleteCriticalSection(fCrit);
   inherited;
@@ -231,8 +249,8 @@ begin
       Lib.RefCount := Lib.RefCount - 1;
       if Lib.RefCount = 0 then
       begin
-        Lib.Free;
         fLibs.Remove(Lib);
+        Lib.Free;
       end;
     end
     else
@@ -359,8 +377,8 @@ begin
       Lib.RefCount := Lib.RefCount - 1;
       if Lib.RefCount = 0 then
       begin
-        Lib.Free;
         fLibs.Remove(Lib);
+        Lib.Free;
       end;
     end
     else
@@ -412,7 +430,7 @@ begin
   S := Manager.GetModuleFileNameMl(hModule);
   StrLCopy(lpFilename, PChar(S), nSize);
   // Mimic the behaviour of the original GetModuleFileName API with settings the result and error code
-  // VG 251114: Can be replaced with an exception if needed 
+  // VG 251114: Can be replaced with an exception if needed
   if Cardinal(Length(S)) > nSize then
   begin
     Result := nSize + 1;

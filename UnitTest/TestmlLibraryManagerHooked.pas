@@ -69,6 +69,7 @@ begin
     aLoadAction := laStream;
     aStream := TMemoryStream.Create;
     TMemoryStream(aStream).LoadFromFile(SourceFile);
+    aFreeStream := true; //Tell the loader to free the stream after copying the content from it
   end;
 end;
 
@@ -249,6 +250,18 @@ begin
   CheckNotNull(TObject(TestClass), 'The class could not be loaded from the BPL. Check if project is built with Runtime packages');
 end;
 
+procedure TestLibraryManagerHooked.TestLoadPackageMemRequiresBFromMem;
+var
+  TestClass: TPersistentClass;
+begin
+  MlSetOnLoadCallback(TestEventLoadActionFromMem);
+  fMemStream.LoadFromFile(BPL_PATH_C);
+  LoadPackageMem(fMemStream, BPL_PATH_C);
+  TestClass := GetClass(TEST_CLASS_NAME_C);
+  CheckNotNull(TObject(TestClass),
+    Format('The "%s" class could not be loaded from the BPL. Check if project is built with Runtime packages', [TEST_CLASS_NAME_C]));
+end;
+
 // Helper callback function for the TestEnumModules test
 function EnumModule(HInstance: Integer; Data: Pointer): Boolean;
 var
@@ -269,18 +282,6 @@ begin
   LoadPackageMem(fMemStream, BPL_PATH_A);
   EnumModules(EnumModule, nil);
   // No need to check conditions at the moment. EnumModule should be able to list all modules and get their names without exceptions
-end;
-
-procedure TestLibraryManagerHooked.TestLoadPackageMemRequiresBFromMem;
-var
-  TestClass: TPersistentClass;
-begin
-  MlSetOnLoadCallback(TestEventLoadActionFromMem);
-  fMemStream.LoadFromFile(BPL_PATH_C);
-  LoadPackageMem(fMemStream, BPL_PATH_C);
-  TestClass := GetClass(TEST_CLASS_NAME_C);
-  CheckNotNull(TObject(TestClass),
-    Format('The "%s" class could not be loaded from the BPL. Check if project is built with Runtime packages', [TEST_CLASS_NAME_C]));
 end;
 
 initialization

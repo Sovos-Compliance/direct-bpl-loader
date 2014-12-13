@@ -393,13 +393,17 @@ end;
 
 destructor TBPLLoader.Destroy;
 begin
-  if Loaded then
-    Unload;
-  inherited;
+  try
+    // Unload can raise exceptions if forcefully unloading the libs in wrong order, so make sure the inherited
+    // destructor is called to free the memory allocated
+    if Loaded then
+      Unload;
+  finally
+    inherited;
+  end;
 end;
 
-procedure TBPLLoader.LoadFromStream(aMem: TStream; aLibFileName: String; aValidatePackage: TValidatePackageProc =
-    nil);
+procedure TBPLLoader.LoadFromStream(aMem: TStream; aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
 begin
   if aLibFileName = '' then
     raise EMlLibraryLoadError.Create('The package file name can not be empty');
@@ -424,17 +428,18 @@ var
   LibModule: PLibModule;
 begin
   Assert(Handle <> 0, 'The Handle of a package must not be 0 when calling UnregisterModule');
-  if fPackageInitialized then
-    FinalizePackage(Handle);
+  try
+    // FinalizePackage can raise exceptions if forcefully unloading the libs in wrong order, so make sure the rest
+    // of the unloading is complete to avoid classes remaining registered
+    if fPackageInitialized then
+      FinalizePackage(Handle);
+  finally
+    LibModule := FindLibModule(Handle);
+    if Assigned(LibModule) then
+      ModuleUnloaded(Handle);
 
-  LibModule := FindLibModule(Handle);
-  if Assigned(LibModule) then
-  begin
-    ModuleUnloaded(Handle);
-    UnregisterModule(LibModule);
+    inherited;
   end;
-
-  inherited;
 end;
 
 end.

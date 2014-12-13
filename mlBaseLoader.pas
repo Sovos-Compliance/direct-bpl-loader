@@ -668,11 +668,15 @@ end;
 
 destructor TMlBaseLoader.Destroy;
 begin
-  if fLoaded then
-    Unload;
-  fJclImage.Free;
-
-  inherited Destroy;
+  try
+    // Unload can raise exceptions if forcefully unloading the libs in wrong order, so make sure the inherited
+    // destructor is called to free the memory allocated
+    if fLoaded then
+      Unload;
+  finally
+    fJclImage.Free;
+    inherited Destroy;
+  end;
 end;
 
 /// Main method to load the library in memory and process the sections, imports, exports, resources, etc
@@ -725,7 +729,7 @@ begin
     MyDLLProc(Cardinal(fImageBase), DLL_PROCESS_DETACH, nil);
   MyDLLProc := nil;
 
-  for I := 0 to length(Sections) - 1 do
+  for I := 0 to Length(Sections) - 1 do
   begin
     if Assigned(Sections[I].Base) then
       VirtualFree(Sections[I].Base, 0, MEM_RELEASE);
