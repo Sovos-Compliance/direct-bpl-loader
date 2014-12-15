@@ -188,6 +188,7 @@ begin
     if not VirtualProtect(SectionBase, ImageNTHeaders.OptionalHeader.SizeofHeaders, PAGE_READONLY, OldProtect) then
       raise EMlLibraryLoadError.Create('Could not protect memory: ' + SysErrorMessage(GetLastError));
     fStream.Seek(OldPosition, soFromBeginning);
+    fHandle := Cardinal(fImageBase);
     Result := True;
   end;
 end;
@@ -706,7 +707,6 @@ begin
                   if ProtectSections then
                     fLoaded := InitializeLibrary;
   fStream := nil;
-  fHandle := Cardinal(fImageBase);
 
   if fLoaded then
     fJclImage.AttachLoadedModule(Cardinal(fImageBase))

@@ -25,7 +25,9 @@ uses
   SysConst,
   Windows,
   TlHelp32,
-  JclPeImage,
+{$IFDEF MLHOOKED}
+  mlKOLDetours,
+{$ENDIF}  
   mlTypes,
   mlBaseLoader,
   mlBPLLoader;
@@ -65,7 +67,6 @@ type
 {$IFDEF MLHOOKED}
   TMlHookedLibraryManager = class(TMlLibraryManager)
   private
-    fHooks: TJclPeMapImgHooks;
     fLoadLibraryOrig      : TLoadLibraryFunc;
     fFreeLibraryOrig      : TFreeLibraryFunc;
     fGetProcAddressOrig   : TGetProcAddressFunc;
@@ -81,6 +82,7 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure HookAPIs;
+    procedure UnhookAPIs;
     function IsWinLoaded(aHandle: TLibHandle): Boolean; override;
     function LoadLibraryMl(lpLibFileName: PChar): TLibHandle; reintroduce; overload;
     function LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle; overload; override;
@@ -463,55 +465,58 @@ begin
 end;
 
 procedure TMlHookedLibraryManager.HookAPIs;
-const
-{$IFDEF VER130}
-  RTL_NAME = 'vcl50.bpl';
-{$ENDIF}
-{$IFDEF VER185}
-  RTL_NAME = 'rtl100.bpl';
-{$ENDIF}
-  LOAD_NAME   = '@Sysutils@LoadPackage$qqrx17System@AnsiString';
-  UNLOAD_NAME = '@Sysutils@UnloadPackage$qqrui';
-var
-  ModuleBase: Pointer;
 begin
-  ModuleBase := Pointer(GetModuleHandle(nil));
-  fHooks.HookImport(ModuleBase, kernel32, 'LoadLibraryA',       Pointer(@LoadLibraryHooked),       Pointer(@fLoadLibraryOrig));
-  fHooks.HookImport(ModuleBase, kernel32, 'FreeLibrary',        Pointer(@FreeLibraryHooked),       Pointer(@fFreeLibraryOrig));
-  fHooks.HookImport(ModuleBase, kernel32, 'FindResourceA',      Pointer(@FindResourceHooked),      Pointer(@fFindResourceOrig));
-  fHooks.HookImport(ModuleBase, kernel32, 'LoadResource',       Pointer(@LoadResourceHooked),      Pointer(@fLoadResourceOrig));
-  fHooks.HookImport(ModuleBase, kernel32, 'SizeofResource',     Pointer(@SizeofResourceHooked),    Pointer(@fSizeofResourceOrig));
-  fHooks.HookImport(ModuleBase, kernel32, 'GetModuleFileNameA', Pointer(@GetModuleFileNameHooked), Pointer(@fGetModuleFileNameOrig));
-  fHooks.HookImport(ModuleBase, kernel32, 'GetModuleHandleA',   Pointer(@GetModuleHandleHooked),   Pointer(@fGetModuleHandleOrig));
-  fHooks.HookImport(ModuleBase, kernel32, 'GetProcAddress',     Pointer(@GetProcAddressHooked),    Pointer(@fGetProcAddressOrig));
-  fHooks.HookImport(ModuleBase, kernel32, 'GetProcAddress',     Pointer(@GetProcAddressHooked),    Pointer(@fGetProcAddressOrig));
-  fHooks.HookImport(ModuleBase, RTL_NAME, LOAD_NAME,            Pointer(@LoadPackageHooked),       Pointer(@fLoadPackageOrig));
-  fHooks.HookImport(ModuleBase, RTL_NAME, UNLOAD_NAME,          Pointer(@UnloadPackageHooked),     Pointer(@fUnloadPackageOrig));
+  @fLoadLibraryOrig       := InterceptCreate(@LoadLibrary, @LoadLibraryHooked);
+  @fFreeLibraryOrig       := InterceptCreate(@FreeLibrary, @FreeLibraryHooked);
+  @fFindResourceOrig      := InterceptCreate(@FindResource, @FindResourceHooked);
+  @fLoadResourceOrig      := InterceptCreate(@LoadResource, @LoadResourceHooked);
+  @fSizeofResourceOrig    := InterceptCreate(@SizeofResource, @SizeofResourceHooked);
+  @fGetModuleFileNameOrig := InterceptCreate(@GetModuleFileName, @GetModuleFileNameHooked);
+  @fGetModuleHandleOrig   := InterceptCreate(@GetModuleHandle, @GetModuleHandleHooked);
+  @fGetProcAddressOrig    := InterceptCreate(@GetProcAddress, @GetProcAddressHooked);
+  @fLoadPackageOrig       := InterceptCreate(@LoadPackage, @LoadPackageHooked);
+  @fUnloadPackageOrig     := InterceptCreate(@UnloadPackage, @UnloadPackageHooked);
+end;
+
+procedure TMlHookedLibraryManager.UnhookAPIs;
+begin
+  InterceptRemove(@fLoadLibraryOrig, @LoadLibraryHooked);
+  InterceptRemove(@fFreeLibraryOrig, @FreeLibraryHooked);
+  InterceptRemove(@fFindResourceOrig, @FindResourceHooked);
+  InterceptRemove(@fLoadResourceOrig, @LoadResourceHooked);
+  InterceptRemove(@fSizeofResourceOrig, @SizeofResourceHooked);
+  InterceptRemove(@fGetModuleFileNameOrig, @GetModuleFileNameHooked);
+  InterceptRemove(@fGetModuleHandleOrig, @GetModuleHandleHooked);
+  InterceptRemove(@fGetProcAddressOrig, @GetProcAddressHooked);
+  InterceptRemove(@fLoadPackageOrig, @LoadPackageHooked);
+  InterceptRemove(@fUnloadPackageOrig, @UnloadPackageHooked);
 end;
 
 constructor TMlHookedLibraryManager.Create;
 begin
   inherited;
-  fHooks := TJclPeMapImgHooks.Create;
-  // The HookAPIs call moved out of the constructor and has to be called manually
-  // Otherwise there is a chance of conflicts that the JCL HookImport function tries to use GetProcAddress, GetModuleHandle
-  // that are already hooked and forwarded to the Manager. However, the constructor of the Manager is not complete yet
-  // and the Manager object is still nil, which in turn leads to AVs
+  // The HookAPIs call moved out of the constructor and has to be called manually immediately after the constructor
+  // Otherwise there is a high chance that another thread calls one of the hooked APIs and tries to forward it to the
+  // Manager object while its constructor is not complete yet, the Manager object is still nil, which leads to AVs
   //  HookAPIs;  // Has to be called manually after the TMlHookedLibraryManager.Create call
 end;
 
 destructor TMlHookedLibraryManager.Destroy;
 begin
-  fHooks.UnhookAll;
-  fHooks.Free;
   inherited;
+  UnhookAPIs; // Unhook the APIs last because they could be used in the inherited destructor when freeing libraries
 end;
 
 function TMlHookedLibraryManager.IsWinLoaded(aHandle: TLibHandle): Boolean;
 var
   ModName: array[0..0] of Char; // No need for a buffer for the full path, we just care if the handle is valid
 begin
-  Result := fGetModuleFileNameOrig(aHandle, ModName, Length(ModName)) <> 0;
+  // Check if the GetModuleFileName is hooked because might be called in the destructor while freeing the libs
+  // and the APIs are already unhooked
+  if Assigned(fGetModuleFileNameOrig) then
+    Result := fGetModuleFileNameOrig(aHandle, ModName, Length(ModName)) <> 0
+  else
+    Result := GetModuleFileName(aHandle, ModName, Length(ModName)) <> 0;
 end;
 
 function TMlHookedLibraryManager.LoadLibraryMl(lpLibFileName: PChar): TLibHandle;
