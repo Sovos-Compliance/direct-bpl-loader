@@ -54,8 +54,6 @@ end;
 
 procedure TestTMlBaseLoader.SetUp;
 begin
-  SetCurrentDir('..\TestDLLs'); // So the test DLL/BPLs can be found
-
   fMemStream := TMemoryStream.Create;
   fMlBaseLoader := TMlBaseLoader.Create;
 end;

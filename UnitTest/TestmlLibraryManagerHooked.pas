@@ -75,8 +75,6 @@ end;
 
 procedure TestLibraryManagerHooked.SetUp;
 begin
-  SetCurrentDir('..\TestDLLs'); // So the test DLL/BPLs can be found
-
   UnloadAllLibraries;  //VG: Reset the library loader and free the memory
   fMemStream := TMemoryStream.Create;
 end;

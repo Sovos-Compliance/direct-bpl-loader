@@ -26,7 +26,8 @@ uses
   mlLibrary in '..\mlLibrary.pas',
   mlManagers in '..\mlManagers.pas',
   mlPEHeaders in '..\mlPEHeaders.pas',
-  mlTypes in '..\mlTypes.pas';
+  mlTypes in '..\mlTypes.pas',
+  mlKOLDetours in '..\mlKOLDetours.pas';
 
 {$R *.RES}
 

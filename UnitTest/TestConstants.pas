@@ -8,12 +8,12 @@ uses
   Windows;
 
 const
-  DLL_PATH   = '..\TestDLLs\TestDll.dll';
-  BPL_PATH_A = '..\TestDLLs\TestBplA.bpl';
-  BPL_PATH_B = '..\TestDLLs\TestBplB_ReqA.bpl';  // For testing package dependencies
-  BPL_PATH_C = '..\TestDLLs\TestBplC_ReqB.bpl';  // For testing package dependencies
-  BPL_DUPLICATE_UNIT_PATH = '..\TestDLLs\TestBplDuplicateUnit.bpl';  // For testing the same unit contained in two packages
-  BPL_SINGLE_PATH = '..\TestDLLs\SingleBplUse.bpl';  // For testing a single base BPL that doesn't include the standard VCL/RTL packages
+  DLL_PATH   = 'TestDll.dll';
+  BPL_PATH_A = 'TestBplA.bpl';
+  BPL_PATH_B = 'TestBplB_ReqA.bpl';  // For testing package dependencies
+  BPL_PATH_C = 'TestBplC_ReqB.bpl';  // For testing package dependencies
+  BPL_DUPLICATE_UNIT_PATH = 'TestBplDuplicateUnit.bpl';  // For testing the same unit contained in two packages
+  BPL_SINGLE_PATH = 'SingleBplUse.bpl';  // For testing a single base BPL that doesn't include the standard VCL/RTL packages
 
   TEST_CLASS_NAME_A = 'TTestClassA';
   TEST_CLASS_NAME_B = 'TTestClassB';
