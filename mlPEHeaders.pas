@@ -33,8 +33,8 @@ interface
     end;
     TSections = array of TSection;
 
-  PImageImportDescriptor=^TImageImportDescriptor;
-  TImageImportDescriptor=packed record  //(C++: IMAGE_IMPORT_DESCRIPTOR)
+  PImageImportDescriptor = ^TImageImportDescriptor;
+  TImageImportDescriptor = packed record  //(C++: IMAGE_IMPORT_DESCRIPTOR)
     OriginalFirstThunk:DWORD;
     TimeDateStamp:DWORD;
     ForwarderChain:DWORD;
