@@ -87,7 +87,7 @@ end;
 function LoadPackage(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle;
 begin
-  Result := Manager.LoadPackageMl(aStream, aLibFileName, aValidatePackage);
+  Result := Manager.LoadPackageMl(aStream, aLibFileName, {$IFDEF DELPHI2007} aValidatePackage {$ELSE} nil {$ENDIF});
 end;
 
 
@@ -142,7 +142,7 @@ end;
 function LoadPackageMem(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle;
 begin
-  Result := Manager.LoadPackageMl(aStream, aLibFileName, aValidatePackage);
+  Result := Manager.LoadPackageMl(aStream, aLibFileName, {$IFDEF DELPHI2007} aValidatePackage {$ELSE} nil {$ENDIF});
 end;
 
 procedure UnloadPackageMem(Module: TLibHandle);
