@@ -22,10 +22,6 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <Version>7.0</Version>
     <DCC_BplOutput>..\..\..\Bin\D2007\Win32\Debug</DCC_BplOutput>
-    <DCC_UnitSearchPath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug</DCC_UnitSearchPath>
-    <DCC_ResourcePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug</DCC_ResourcePath>
-    <DCC_ObjPath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug</DCC_ObjPath>
-    <DCC_IncludePath>$(BDS)\lib\Debug;$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug</DCC_IncludePath>
     <DCC_Optimize>False</DCC_Optimize>
     <DCC_Define>DEBUG</DCC_Define>
     <DCC_DcuOutput>..\..\..\Intermediate\D2007\Win32\Debug</DCC_DcuOutput>
@@ -43,12 +39,11 @@
     <DelphiCompile Include="TestBplA.dpk">
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
-    <DCCReference Include="rtl.dcp" />
+    <DCCReference Include="$(SystemRoot)\system32\rtl.dcp" />
     <DCCReference Include="TestClassA.pas" />
     <DCCReference Include="TestInterfaces.pas" />
   </ItemGroup>
 </Project>
-
 <!-- EurekaLog First Line
 [Exception Log]
 EurekaLog Version=6002

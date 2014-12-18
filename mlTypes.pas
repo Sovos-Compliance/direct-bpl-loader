@@ -29,10 +29,10 @@ type
   /// The value set in aLoadAction defines how the dependent library should be loaded
   ///   laDiscard - don't load the library
   ///   laHardDrive - load the library with the standard LoadLibrary Windows API
-  ///   laMemStream - load the library from the stream passed in aMemStream (which has to be freed later)
-  TLoadAction = (laHardDisk, laMemStream, laDiscard);
+  ///   laStream - load the library from the stream passed in aStream (which has to be freed later)
+  TLoadAction = (laHardDisk, laStream, laDiscard);
   TMlLoadDependentLibraryEvent = procedure(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-      aMemStream: TMemoryStream; var aFreeStream: Boolean) of object;
+      aStream: TStream; var aFreeStream: Boolean) of object;
 
 {$IFDEF VER130}
   TValidatePackageProc = function (Module: HMODULE): Boolean;
@@ -47,6 +47,8 @@ type
   TSizeofResourceFunc    = function (hModule: HMODULE; hResInfo: HRSRC)              : DWORD; stdcall;
   TGetModuleFileNameFunc = function (hModule: HINST; lpFilename: PChar; nSize: DWORD): DWORD; stdcall;
   TGetModuleHandleFunc   = function (lpModuleName: PChar)                            : HMODULE; stdcall;
+  TLoadPackageFunc       = function (const Name: string; AValidatePackage: TValidatePackageProc = nil): HMODULE;
+  TUnloadPackageProc     = procedure (Module: HMODULE);
 
 
 implementation

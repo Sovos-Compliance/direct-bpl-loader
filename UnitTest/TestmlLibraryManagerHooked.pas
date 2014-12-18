@@ -16,10 +16,10 @@ type
   private
     fMemStream: TMemoryStream;
     fEventCalled: Boolean;
-    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream;
-        var aFreeStream: Boolean);
-    procedure TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-        aMemStream: TMemoryStream; var aFreeStream: Boolean);
+    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream: TStream; var
+        aFreeStream: Boolean);
+    procedure TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
+        TStream; var aFreeStream: Boolean);
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -48,13 +48,13 @@ type
 implementation
 
 procedure TestLibraryManagerHooked.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-    aMemStream: TMemoryStream; var aFreeStream: Boolean);
+    aStream: TStream; var aFreeStream: Boolean);
 begin
   fEventCalled := true;
 end;
 
 procedure TestLibraryManagerHooked.TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction:
-    TLoadAction; var aMemStream: TMemoryStream; var aFreeStream: Boolean);
+    TLoadAction; var aStream: TStream; var aFreeStream: Boolean);
 var
   SourceFile: String;
 begin
@@ -66,16 +66,15 @@ begin
     SourceFile := BPL_PATH_C;
   if SourceFile <> '' then
   begin
-    aLoadAction := laMemStream;
-    aMemStream := TMemoryStream.Create;
-    aMemStream.LoadFromFile(SourceFile);
+    aLoadAction := laStream;
+    aStream := TMemoryStream.Create;
+    TMemoryStream(aStream).LoadFromFile(SourceFile);
+    aFreeStream := true; //Tell the loader to free the stream after copying the content from it
   end;
 end;
 
 procedure TestLibraryManagerHooked.SetUp;
 begin
-  //SetCurrentDir('..\TestDLLs'); // So the test DLL/BPLs can be found
-
   UnloadAllLibraries;  //VG: Reset the library loader and free the memory
   fMemStream := TMemoryStream.Create;
 end;
@@ -244,9 +243,21 @@ var
   TestClass: TPersistentClass;
 begin
   fMemStream.LoadFromFile(BPL_PATH_A);
-  LoadPackageMem(fMemStream, BPL_PATH_A);
+  LoadPackage(fMemStream, BPL_PATH_A);
   TestClass := GetClass(TEST_CLASS_NAME_A);
   CheckNotNull(TObject(TestClass), 'The class could not be loaded from the BPL. Check if project is built with Runtime packages');
+end;
+
+procedure TestLibraryManagerHooked.TestLoadPackageMemRequiresBFromMem;
+var
+  TestClass: TPersistentClass;
+begin
+  MlSetOnLoadCallback(TestEventLoadActionFromMem);
+  fMemStream.LoadFromFile(BPL_PATH_C);
+  LoadPackage(fMemStream, BPL_PATH_C);
+  TestClass := GetClass(TEST_CLASS_NAME_C);
+  CheckNotNull(TObject(TestClass),
+    Format('The "%s" class could not be loaded from the BPL. Check if project is built with Runtime packages', [TEST_CLASS_NAME_C]));
 end;
 
 // Helper callback function for the TestEnumModules test
@@ -259,27 +270,16 @@ begin
   Len := MAX_PATH;
   OutputDebugString(PChar(IntToStr(HInstance)));
   SetLength(ModName, GetModuleFileName(HInstance, PChar(ModName), Len));
+  OutputDebugString(PChar(ModName));
   Result := True;
 end;
 
 procedure TestLibraryManagerHooked.TestEnumModules;
 begin
   fMemStream.LoadFromFile(BPL_PATH_A);
-  LoadPackageMem(fMemStream, BPL_PATH_A);
+  LoadPackage(fMemStream, BPL_PATH_A);
   EnumModules(EnumModule, nil);
   // No need to check conditions at the moment. EnumModule should be able to list all modules and get their names without exceptions
-end;
-
-procedure TestLibraryManagerHooked.TestLoadPackageMemRequiresBFromMem;
-var
-  TestClass: TPersistentClass;
-begin
-  MlSetOnLoadCallback(TestEventLoadActionFromMem);
-  fMemStream.LoadFromFile(BPL_PATH_C);
-  LoadPackageMem(fMemStream, BPL_PATH_C);
-  TestClass := GetClass(TEST_CLASS_NAME_C);
-  CheckNotNull(TObject(TestClass),
-    Format('The "%s" class could not be loaded from the BPL. Check if project is built with Runtime packages', [TEST_CLASS_NAME_C]));
 end;
 
 initialization

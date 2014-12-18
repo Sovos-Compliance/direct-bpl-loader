@@ -21,12 +21,13 @@ uses
   TextTestRunner,
   TestmlLibraryManagerHooked in 'TestmlLibraryManagerHooked.pas',
   TestConstants in 'TestConstants.pas',
-  mlLibrary in '..\mlLibrary.pas',
   mlBaseLoader in '..\mlBaseLoader.pas',
   mlBPLLoader in '..\mlBPLLoader.pas',
+  mlLibrary in '..\mlLibrary.pas',
   mlManagers in '..\mlManagers.pas',
   mlPEHeaders in '..\mlPEHeaders.pas',
-  mlTypes in '..\mlTypes.pas';
+  mlTypes in '..\mlTypes.pas',
+  mlKOLDetours in '..\mlKOLDetours.pas';
 
 {$R *.RES}
 

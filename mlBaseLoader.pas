@@ -79,14 +79,14 @@ type
     function ProcessResources  : Boolean;
     function InitializeLibrary : Boolean;
 
-    function LoadExternalLibrary(const LibraryName: String): HINST;
+    function LoadExternalLibrary(const aLibName: String): HINST;
     function IsValidResHandle(hResInfo: HRSRC): Boolean;
   protected
-    function GetExternalLibraryHandle(const LibraryName: String): HINST;
+    function GetExternalLibraryHandle(const aLibName: String): HINST;
     function GetExternalLibraryName(aLibHandle: HINST): String;
     function GetExternalLibraryProcAddress(aLibHandle: HINST; aProcName: PChar): FARPROC;
   public
-    constructor Create(aMem: TMemoryStream; const aName: String = ''); overload;
+    constructor Create(aMem: TStream; const aName: String = ''); overload;
     constructor Create; overload;
     destructor Destroy; override;
 
@@ -98,9 +98,9 @@ type
     function LoadResourceMl(hResInfo: HRSRC): HGLOBAL;
     function SizeOfResourceMl(hResInfo: HRSRC): DWORD;
 
-    property Loaded          : Boolean                      read fLoaded           write fLoaded;
+    property Loaded          : Boolean                      read fLoaded;
     property ImageBase       : Pointer                      read fImageBase;
-    property Handle          : TLibHandle                   read fHandle           write fHandle;
+    property Handle          : TLibHandle                   read fHandle;
     property Name            : String                       read fName;
     property RefCount        : Integer                      read fRefCount         write fRefCount;
     property OnDependencyLoad: TMlLoadDependentLibraryEvent read fOnDependencyLoad write fOnDependencyLoad;
@@ -188,6 +188,7 @@ begin
     if not VirtualProtect(SectionBase, ImageNTHeaders.OptionalHeader.SizeofHeaders, PAGE_READONLY, OldProtect) then
       raise EMlLibraryLoadError.Create('Could not protect memory: ' + SysErrorMessage(GetLastError));
     fStream.Seek(OldPosition, soFromBeginning);
+    fHandle := Cardinal(fImageBase);
     Result := True;
   end;
 end;
@@ -490,15 +491,15 @@ end;
 /// Fire the OnDependencyLoad event and load the library from drive or memory(or discard)
 /// depending on the event params
 /// The optionally passed MemStream can be freed after loading from it
-function TMlBaseLoader.LoadExternalLibrary(const LibraryName: String): HINST;
+function TMlBaseLoader.LoadExternalLibrary(const aLibName: String): HINST;
 var
   LoadAction: TLoadAction;
-  MemStream : TMemoryStream;
+  LibStream : TStream;
   FreeStream: Boolean;
   Source    : TExternalLibrarySource;
 begin
   // Check the array of already loaded external libraries
-  Result := GetExternalLibraryHandle(LibraryName);
+  Result := GetExternalLibraryHandle(aLibName);
 
   // Not in the array, so we have to load it
   if Result = 0 then
@@ -508,36 +509,36 @@ begin
     // Otherwise the other module that used the external might unload it, while it is used by this module
 
     // Check the standard API
-    Result := MlGetGlobalModuleHandle(LibraryName);
+    Result := MlGetGlobalModuleHandle(aLibName);
     if Result <> 0 then
     begin
       if MlIsWinLoaded(Result) then
       begin
         // Load with the Win API
-        Result := Windows.LoadLibrary(PChar(LibraryName));  // Inc the reference count
+        Result := Windows.LoadLibrary(PChar(aLibName));  // Inc the reference count
         // Check the result again because there is a slight chance that the lib got deleted between the GetModuleHandle and LoadLibrary calls (very unlikely)
         if Result = 0 then
           raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
-            [LibraryName, SysErrorMessage(GetLastError)]);
+            [aLibName, SysErrorMessage(GetLastError)]);
         Source := lsHardDisk;
       end else
       begin
         // Load with the Mem API
 {$IFDEF MLHOOKED}
-        Result := LoadLibrary(nil, PChar(LibraryName)); // No need to pass a mem stream. This will just increase the ref count
+        Result := LoadLibrary(nil, PChar(aLibName)); // No need to pass a mem stream. This will just increase the ref count
 {$ELSE}
-        Result := LoadLibraryMem(nil, LibraryName); // No need to pass a mem stream. This will just increase the ref count
+        Result := LoadLibraryMem(nil, aLibName); // No need to pass a mem stream. This will just increase the ref count
 {$ENDIF MLHOOKED}
-        Source := lsMemStream;
+        Source := lsStream;
       end
     end else
     begin
       // Not loaded from either Disk or Mem, so call the event and load the library
       LoadAction := laHardDisk;
-      MemStream  := nil;
+      LibStream  := nil;
       FreeStream := false;
       if Assigned(fOnDependencyLoad) then
-        fOnDependencyLoad(fName, LibraryName, LoadAction, MemStream, FreeStream);
+        fOnDependencyLoad(fName, aLibName, LoadAction, LibStream, FreeStream);
 
       Source := lsHardDisk;
       case LoadAction of
@@ -546,32 +547,32 @@ begin
             // Load the external as a BPL or a DLL
             // VG 140814: This needs more investigation. Original LoadPackage uses LoadLibrary to load dependencies,
             // but in our case this leads to items in the UnitHashBuckets array not being cleared and AVs
-            if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-              Result := LoadPackage(LibraryName)
+            if UpperCase(ExtractFileExt(aLibName)) = '.BPL' then
+              Result := SysUtils.LoadPackage(aLibName)
             else
-              Result := Windows.LoadLibrary(PChar(LibraryName));
+              Result := Windows.LoadLibrary(PChar(aLibName));
             if Result = 0 then
               raise EMlLibraryLoadError.CreateFmt('Required library %s could not be loaded. OS Error: %s',
-                [LibraryName, SysErrorMessage(GetLastError)]);
+                [aLibName, SysErrorMessage(GetLastError)]);
             Source := lsHardDisk;
           end;
-        laMemStream:
+        laStream:
           begin
             // Load the external as a BPL or a DLL. See comment above
 {$IFDEF MLHOOKED}
-            if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-              Result := LoadPackageMem(MemStream, LibraryName)
+            if UpperCase(ExtractFileExt(aLibName)) = '.BPL' then
+              Result := LoadPackage(LibStream, aLibName)
             else
-              Result := LoadLibrary(MemStream, PChar(LibraryName));
+              Result := LoadLibrary(LibStream, PChar(aLibName));
 {$ELSE}
-            if UpperCase(ExtractFileExt(LibraryName)) = '.BPL' then
-              Result := LoadPackageMem(MemStream, LibraryName)
+            if UpperCase(ExtractFileExt(aLibName)) = '.BPL' then
+              Result := LoadPackageMem(LibStream, aLibName)
             else
-              Result := LoadLibraryMem(MemStream, LibraryName);
+              Result := LoadLibraryMem(LibStream, aLibName);
 {$ENDIF MLHOOKED}
-            Source := lsMemStream;
+            Source := lsStream;
             if FreeStream then
-              FreeAndNil(MemStream);
+              FreeAndNil(LibStream);
           end;
         laDiscard:  //VG 010814: TODO: Is this really necessary? What usage would it have?
           begin
@@ -582,20 +583,19 @@ begin
 
     SetLength(ExternalLibraryArray, Length(ExternalLibraryArray) + 1);
     ExternalLibraryArray[High(ExternalLibraryArray)].LibrarySource := Source;
-    ExternalLibraryArray[High(ExternalLibraryArray)].LibraryName   := LibraryName;
+    ExternalLibraryArray[High(ExternalLibraryArray)].LibraryName   := aLibName;
     ExternalLibraryArray[High(ExternalLibraryArray)].LibraryHandle := Result;
   end;
 end;
 
-function TMlBaseLoader.GetExternalLibraryHandle(const LibraryName: String):
-    HINST;
+function TMlBaseLoader.GetExternalLibraryHandle(const aLibName: String): HINST;
 var
   I : Integer;
 begin
   Result := 0;
   for I := 0 to Length(ExternalLibraryArray) - 1 do
   begin
-    if ExternalLibraryArray[I].LibraryName = LibraryName then
+    if ExternalLibraryArray[I].LibraryName = aLibName then
     begin
       Result := ExternalLibraryArray[I].LibraryHandle;
       Exit;
@@ -652,7 +652,7 @@ begin
   end;
 end;
 
-constructor TMlBaseLoader.Create(aMem: TMemoryStream; const aName: String = '');
+constructor TMlBaseLoader.Create(aMem: TStream; const aName: String = '');
 begin
   Create;
 
@@ -663,16 +663,21 @@ end;
 constructor TMlBaseLoader.Create;
 begin
   inherited Create;
+  fRefCount := 1;
   fJclImage := TJclPeImage.Create;
 end;
 
 destructor TMlBaseLoader.Destroy;
 begin
-  if fLoaded then
-    Unload;
-  fJclImage.Free;
-
-  inherited Destroy;
+  try
+    // Unload can raise exceptions if forcefully unloading the libs in wrong order, so make sure the inherited
+    // destructor is called to free the memory allocated
+    if fLoaded then
+      Unload;
+  finally
+    fJclImage.Free;
+    inherited Destroy;
+  end;
 end;
 
 /// Main method to load the library in memory and process the sections, imports, exports, resources, etc
@@ -724,7 +729,7 @@ begin
     MyDLLProc(Cardinal(fImageBase), DLL_PROCESS_DETACH, nil);
   MyDLLProc := nil;
 
-  for I := 0 to length(Sections) - 1 do
+  for I := 0 to Length(Sections) - 1 do
   begin
     if Assigned(Sections[I].Base) then
       VirtualFree(Sections[I].Base, 0, MEM_RELEASE);
@@ -740,10 +745,7 @@ begin
     begin
 {$IFDEF MLHOOKED}
       if UpperCase(ExtractFileExt(ExternalLibraryArray[I].LibraryName)) = '.BPL' then
-        if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
-          UnloadPackage(ExternalLibraryArray[I].LibraryHandle)
-        else
-          UnloadPackageMem(ExternalLibraryArray[I].LibraryHandle)
+        UnloadPackage(ExternalLibraryArray[I].LibraryHandle)
       else
         FreeLibrary(ExternalLibraryArray[I].LibraryHandle);
 {$ELSE}
@@ -753,7 +755,10 @@ begin
         else
           UnloadPackageMem(ExternalLibraryArray[I].LibraryHandle)
       else
-        FreeLibraryMem(ExternalLibraryArray[I].LibraryHandle);
+        if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
+          FreeLibrary(ExternalLibraryArray[I].LibraryHandle)
+        else
+          FreeLibraryMem(ExternalLibraryArray[I].LibraryHandle);
 {$ENDIF MLHOOKED}
     end;
   end;

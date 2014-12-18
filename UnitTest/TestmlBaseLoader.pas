@@ -19,8 +19,8 @@ type
     fMlBaseLoader: TMlBaseLoader;
     fEventCalled: Boolean;
     procedure LoadHelper(aPath: String);
-    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aMemStream: TMemoryStream;
-        var aFreeStream: Boolean);
+    procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream: TStream; var
+        aFreeStream: Boolean);
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -54,8 +54,6 @@ end;
 
 procedure TestTMlBaseLoader.SetUp;
 begin
-  SetCurrentDir('..\TestDLLs'); // So the test DLL/BPLs can be found
-
   fMemStream := TMemoryStream.Create;
   fMlBaseLoader := TMlBaseLoader.Create;
 end;
@@ -223,8 +221,8 @@ begin
   fMlBaseLoader.SizeOfResourceMl(TEST_WRONG_RES_HANDLE);
 end;
 
-procedure TestTMlBaseLoader.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-    aMemStream: TMemoryStream; var aFreeStream: Boolean);
+procedure TestTMlBaseLoader.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
+    TStream; var aFreeStream: Boolean);
 begin
   fEventCalled := true;
 end;
