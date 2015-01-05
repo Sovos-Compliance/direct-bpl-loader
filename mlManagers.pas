@@ -25,6 +25,7 @@ uses
   SysConst,
   Windows,
   TlHelp32,
+  HashTrie,
 {$IFDEF MLHOOKED}
   mlKOLDetours,
 {$ENDIF}  
@@ -35,8 +36,10 @@ uses
 type
   TMlLibraryManager = class
   private
-    fCrit: TRTLCriticalSection;
-    fLibs: TList;
+    fCrit            : TRTLCriticalSection;
+    fLibs            : TList;
+    fHandleHash      : TIntegerHashTrie;
+    fNamesHash       : TStringHashTrie;
     fOnDependencyLoad: TMlLoadDependentLibraryEvent;
     function GetLibs(aIndex: Integer): TMlBaseLoader;
     function LibraryIndexByHandle(aHandle: TLibHandle): Integer;
@@ -164,6 +167,9 @@ begin
   inherited;
   fLibs := TList.Create;
   InitializeCriticalSection(fCrit);
+  fHandleHash := TIntegerHashTrie.Create;
+  fNamesHash := TStringHashTrie.Create;
+  fNamesHash.CaseSensitive := false;
 end;
 
 destructor TMlLibraryManager.Destroy;
@@ -190,6 +196,8 @@ begin
 
   fLibs.Free;
   DeleteCriticalSection(fCrit);
+  fHandleHash.Free;
+  fNamesHash.Free;
   inherited;
 end;
 
@@ -213,17 +221,15 @@ end;
 function TMlLibraryManager.LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle;
 var
   Loader: TMlBaseLoader;
-  Index: Integer;
 begin
   Result := 0;
   EnterCriticalSection(fCrit);
   try
-    Index := LibraryIndexByName(aLibFileName);
-    if Index <> -1 then
+    if fNamesHash.Find(aLibFileName, TObject(Loader)) then
     begin
       // Increase the RefCount of the already loaded library
-      Libs[Index].RefCount := Libs[Index].RefCount + 1;
-      Result := Libs[Index].Handle;
+      Loader.RefCount := Loader.RefCount + 1;
+      Result := Loader.Handle;
     end else
     begin
       // Or load the library if it is a new one
@@ -232,6 +238,8 @@ begin
         fLibs.Add(Loader); // It is added to the list first because loading checks its own handle (in LoadPackageMl)
         Loader.OnDependencyLoad := DoDependencyLoad;
         Loader.LoadFromStream(aStream, aLibFileName);
+        fHandleHash.Add(Loader.Handle, TObject(Loader));
+        fNamesHash.Add(aLibFileName, TObject(Loader));
         Result := Loader.Handle;
       except
         fLibs.Remove(Loader);
@@ -247,19 +255,18 @@ end;
 /// Decrement the RefCount of a library on each call and unload/free it if the count reaches 0
 procedure TMlLibraryManager.FreeLibraryMl(aHandle: TLibHandle);
 var
-  Index: Integer;
   Lib: TMlBaseLoader;
 begin
   EnterCriticalSection(fCrit);
   try
-    Index := LibraryIndexByHandle(aHandle);
-    if Index <> -1 then
+    if fHandleHash.Find(aHandle, TObject(Lib)) then
     begin
-      Lib := Libs[Index];
       Lib.RefCount := Lib.RefCount - 1;
       if Lib.RefCount = 0 then
       begin
         fLibs.Remove(Lib);
+        fHandleHash.Delete(Lib.Handle);
+        fNamesHash.Delete(Lib.Name);
         Lib.Free;
       end;
     end
@@ -342,17 +349,15 @@ function TMlLibraryManager.LoadPackageMl(aStream: TStream; const aLibFileName: S
     TValidatePackageProc): TLibHandle;
 var
   Loader: TBPLLoader;
-  Index: Integer;
 begin
   Result := 0;
   EnterCriticalSection(fCrit);
   try
-    Index := LibraryIndexByName(aLibFileName);
-    if Index <> -1 then
+    if fNamesHash.Find(aLibFileName, TObject(Loader)) then
     begin
       // Increase the RefCount of the already loaded library
-      Libs[Index].RefCount := Libs[Index].RefCount + 1;
-      Result := Libs[Index].Handle;
+      Loader.RefCount := Loader.RefCount + 1;
+      Result := Loader.Handle;
     end else
     begin
       // Or load the library if it is a new one
@@ -361,6 +366,8 @@ begin
         fLibs.Add(Loader); // It is added to the list first because loading checks its own handle (in LoadPackageMl)
         Loader.OnDependencyLoad := DoDependencyLoad;
         Loader.LoadFromStream(aStream, aLibFileName, aValidatePackage);
+        fHandleHash.Add(Loader.Handle, TObject(Loader));
+        fNamesHash.Add(aLibFileName, TObject(Loader));
         Result := Loader.Handle;
       except
         fLibs.Remove(Loader);
@@ -375,19 +382,18 @@ end;
 
 procedure TMlLibraryManager.UnloadPackageMl(aHandle: TLibHandle);
 var
-  Index: Integer;
   Lib: TBPLLoader;
 begin
   EnterCriticalSection(fCrit);
   try
-    Index := LibraryIndexByHandle(aHandle);
-    if Index <> -1 then
+    if fHandleHash.Find(aHandle, TObject(Lib)) then
     begin
-      Lib := Libs[Index] as TBPLLoader;
       Lib.RefCount := Lib.RefCount - 1;
       if Lib.RefCount = 0 then
       begin
         fLibs.Remove(Lib);
+        fHandleHash.Delete(Lib.Handle);
+        fNamesHash.Delete(Lib.Name);
         Lib.Free;
       end;
     end

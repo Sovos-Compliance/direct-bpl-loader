@@ -16,10 +16,10 @@
     <DCC_LocalDebugSymbols>False</DCC_LocalDebugSymbols>
     <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
     <DCC_Define>RELEASE;MLHOOKED</DCC_Define>
-    <DCC_UnitSearchPath>$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common</DCC_UnitSearchPath>
-    <DCC_ResourcePath>$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common</DCC_ResourcePath>
-    <DCC_ObjPath>$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common</DCC_ObjPath>
-    <DCC_IncludePath>$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common</DCC_IncludePath>
+    <DCC_UnitSearchPath>$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common;..\..\convey-public-libs;..\..\convey-private-libs</DCC_UnitSearchPath>
+    <DCC_ResourcePath>$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common;..\..\convey-public-libs;..\..\convey-private-libs</DCC_ResourcePath>
+    <DCC_ObjPath>$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common;..\..\convey-public-libs;..\..\convey-private-libs</DCC_ObjPath>
+    <DCC_IncludePath>$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common;..\..\convey-public-libs;..\..\convey-private-libs</DCC_IncludePath>
     <DCC_ExeOutput>..\..\..\Bin\D2007\Win32\Release</DCC_ExeOutput>
     <DCC_DcuOutput>..\..\..\Intermediate\D2007\Win32\Release</DCC_DcuOutput>
     <DCC_ObjOutput>..\..\..\Intermediate\D2007\Win32\Release</DCC_ObjOutput>
@@ -28,10 +28,10 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <Version>7.0</Version>
     <DCC_Define>DEBUG;_CONSOLE_TESTRUNNER;MLHOOKED</DCC_Define>
-    <DCC_UnitSearchPath>$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common</DCC_UnitSearchPath>
-    <DCC_ResourcePath>$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common</DCC_ResourcePath>
-    <DCC_ObjPath>$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common</DCC_ObjPath>
-    <DCC_IncludePath>$(BDS)\Lib\Debug\Indy10;C:\Program Files (x86)\Delphi components\jcl-2.6.0.5178\lib\d11\debug;$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common</DCC_IncludePath>
+    <DCC_UnitSearchPath>$(BDS)\Lib\Debug\Indy10;$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common;..\..\convey-public-libs;..\..\convey-private-libs</DCC_UnitSearchPath>
+    <DCC_ResourcePath>$(BDS)\Lib\Debug\Indy10;$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common;..\..\convey-public-libs;..\..\convey-private-libs</DCC_ResourcePath>
+    <DCC_ObjPath>$(BDS)\Lib\Debug\Indy10;$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common;..\..\convey-public-libs;..\..\convey-private-libs</DCC_ObjPath>
+    <DCC_IncludePath>$(BDS)\Lib\Debug\Indy10;$(BDS)\lib\Debug;$(BDS)\Source\DUnit\src;..\..\jcl\jcl\source\windows;..\..\jcl\jcl\packages\fpc\;..\..\jcl\jcl\source\include;..\..\jcl\jcl\source\common;..\..\convey-public-libs;..\..\convey-private-libs</DCC_IncludePath>
     <DCC_Optimize>False</DCC_Optimize>
     <DCC_SYMBOL_PLATFORM>False</DCC_SYMBOL_PLATFORM>
     <DCC_TYPEINFO_IMPLICITLY_ADDED>False</DCC_TYPEINFO_IMPLICITLY_ADDED>

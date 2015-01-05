@@ -8,6 +8,7 @@ uses
   Windows;
 
 const
+  DLL_DUMMY  = 'Dummy_path';
   DLL_PATH   = 'TestDll.dll';
   BPL_PATH_A = 'TestBplA.bpl';
   BPL_PATH_B = 'TestBplB_ReqA.bpl';  // For testing package dependencies

@@ -27,8 +27,7 @@ type
     procedure TestLoadLibraryValid;
     procedure TestLoadLibraryMemInvalidStream;
     procedure TestLoadLibraryMemEmptyStream;
-    procedure TestLoadLibraryTwiceNamed;
-    procedure TestLoadLibraryTwiceUnnamed;
+    procedure TestLoadLibraryTwice;
     procedure TestGetProcAddressMemValid;
     procedure TestGetProcAddressMemInvalidName;
     procedure TestFindResourceValid;
@@ -90,7 +89,7 @@ var
   ReturnValue: TLibHandle;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
-  ReturnValue := LoadLibrary(fMemStream);
+  ReturnValue := LoadLibrary(fMemStream, DLL_PATH);
   CheckNotEquals(0, ReturnValue, 'Library should have been loaded');
 end;
 
@@ -106,7 +105,7 @@ begin
     PByte(Cardinal(fMemStream.Memory) + I)^ := Byte(I);
 
   ExpectedException := EMLLibraryLoadError;
-  ReturnValue := LoadLibrary(fMemStream);
+  ReturnValue := LoadLibrary(fMemStream, DLL_DUMMY);
   CheckEquals(0, ReturnValue, 'An invalid library should not be loaded');
 end;
 
@@ -117,11 +116,11 @@ begin
   // Try to load from an empty strem
   fMemStream.Clear;
   ExpectedException := EMLLibraryLoadError;
-  ReturnValue := LoadLibrary(fMemStream);
+  ReturnValue := LoadLibrary(fMemStream, DLL_DUMMY);
   CheckEquals(0, ReturnValue, 'An empty stream should not be loaded');
 end;
 
-procedure TestLibraryManagerHooked.TestLoadLibraryTwiceNamed;
+procedure TestLibraryManagerHooked.TestLoadLibraryTwice;
 var
   ReturnValue1, ReturnValue2: TLibHandle;
 begin
@@ -129,16 +128,6 @@ begin
   ReturnValue1 := LoadLibrary(fMemStream, DLL_PATH);
   ReturnValue2 := LoadLibrary(fMemStream, DLL_PATH);
   CheckEquals(ReturnValue1, ReturnValue2, 'Library handles should be the same because it is loaded once with RefCount 2');
-end;
-
-procedure TestLibraryManagerHooked.TestLoadLibraryTwiceUnnamed;
-var
-  ReturnValue1, ReturnValue2: TLibHandle;
-begin
-  fMemStream.LoadFromFile(DLL_PATH);
-  ReturnValue1 := LoadLibrary(fMemStream);
-  ReturnValue2 := LoadLibrary(fMemStream);
-  CheckNotEquals(ReturnValue1, ReturnValue2, 'Library handles should be different because no lib names are passed');
 end;
 
 procedure TestLibraryManagerHooked.TestGetProcAddressMemValid;
@@ -150,7 +139,7 @@ var
   A, B, C: Integer;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
-  LibHandle := LoadLibrary(fMemStream);
+  LibHandle := LoadLibrary(fMemStream, DLL_PATH);
   @TestProc := GetProcAddress(LibHandle, TEST_FUNCTION_NAME);
   A := 2; B := 3;
   C := TestProc(A, B);
@@ -162,7 +151,7 @@ var
   LibHandle: TLibHandle;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
-  LibHandle := LoadLibrary(fMemStream);
+  LibHandle := LoadLibrary(fMemStream, DLL_PATH);
   ExpectedException := EMlProcedureError;
   GetProcAddress(LibHandle, 'Some invalid function name');
 end;
@@ -173,7 +162,7 @@ var
   ResourceFound: HRSRC;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
-  LibHandle := LoadLibrary(fMemStream);
+  LibHandle := LoadLibrary(fMemStream, DLL_PATH);
   ResourceFound := FindResource(LibHandle, TEST_RES_NAME, TEST_RES_TYPE);
   CheckNotEquals(0, ResourceFound);
 end;
@@ -183,7 +172,7 @@ var
   LibHandle: TLibHandle;
 begin
   fMemStream.LoadFromFile(DLL_PATH);
-  LibHandle := LoadLibrary(fMemStream);
+  LibHandle := LoadLibrary(fMemStream, DLL_PATH);
   FreeLibrary(LibHandle);
 end;
 
