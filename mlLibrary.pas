@@ -31,7 +31,7 @@ uses
 
 {$IFDEF MLHOOKED}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
-function LoadLibrary(aStream: TStream; lpLibFileName: PChar = nil): HMODULE; overload;
+function LoadLibrary(aStream: TStream; lpLibFileName: PChar): HMODULE; overload;
 function LoadLibrary(aStream: TStream; const aLibFileName: String): HMODULE; overload;
 
 /// BPL loading functions
@@ -40,7 +40,7 @@ function LoadPackage(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI
 
 {$ELSE}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
-function LoadLibraryMem(aStream: TStream; const aLibFileName: String = ''): TLibHandle;
+function LoadLibraryMem(aStream: TStream; const aLibFileName: String): TLibHandle;
 procedure FreeLibraryMem(hModule: TLibHandle);
 function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
 function FindResourceMem(hModule: TLibHandle; lpName, lpType: PChar): HRSRC;
@@ -71,7 +71,7 @@ implementation
 { ============ Hooked DLL Library memory functions ============ }
 { ============================================================= }
 
-function LoadLibrary(aStream: TStream; lpLibFileName: PChar = nil): HMODULE;
+function LoadLibrary(aStream: TStream; lpLibFileName: PChar): HMODULE;
 begin
   Result := Manager.LoadLibraryMl(aStream, lpLibFileName);
 end;
@@ -95,7 +95,7 @@ end;
 { ============ Unhooked DLL Library memory functions ============ }
 { =============================================================== }
 
-function LoadLibraryMem(aStream: TStream; const aLibFileName: String = ''): TLibHandle;
+function LoadLibraryMem(aStream: TStream; const aLibFileName: String): TLibHandle;
 begin
   Result := Manager.LoadLibraryMl(aStream, aLibFileName);
 end;
