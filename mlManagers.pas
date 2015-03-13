@@ -42,8 +42,6 @@ type
     fNamesHash       : TStringHashTrie;
     fOnDependencyLoad: TMlLoadDependentLibraryEvent;
     function GetLibs(aIndex: Integer): TMlBaseLoader;
-    function LibraryIndexByHandle(aHandle: TLibHandle): Integer;
-    function LibraryIndexByName(const aLibName: String): Integer;
     procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
         TStream; var aFreeStream: Boolean);
     property Libs[aIndex: Integer]: TMlBaseLoader read GetLibs;
@@ -52,6 +50,7 @@ type
     destructor Destroy; override;
     function GetGlobalModuleHandle(const aModuleName: String): TLibHandle;
     function IsWinLoaded(aHandle: TLibHandle): Boolean; virtual;
+    function IsMemLoaded(aHandle: TLibHandle): Boolean;
     function LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle; virtual;
     procedure FreeLibraryMl(aHandle: TLibHandle); virtual;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; virtual;
@@ -122,38 +121,6 @@ begin
   Result := fLibs[aIndex];
 end;
 
-/// Helper method to find the internal index of a loaded library given its handle
-/// Used by most other methods that operate on a handle
-function TMlLibraryManager.LibraryIndexByHandle(aHandle: TLibHandle): Integer;
-var
-  I: Integer;
-begin
-  Result := -1;
-  for I := 0 to fLibs.Count - 1 do
-    if Libs[I].Handle = aHandle then
-    begin
-      Result := I;
-      Exit;
-    end;
-end;
-
-/// Helper method to find the internal index of a loaded library given its handle
-/// Used when loading a library to check if loaded already
-function TMlLibraryManager.LibraryIndexByName(const aLibName: String): Integer;
-var
-  I: Integer;
-begin
-  Result := -1;
-  if aLibName = '' then
-    Exit;
-  for I := 0 to fLibs.Count - 1 do
-    if SameText(Libs[I].Name, ExtractFileName(aLibName)) then
-    begin
-      Result := I;
-      Exit;
-    end;
-end;
-
 /// This method is assigned to each TmlBaseLoader and forwards the event to the global MlOnDependencyLoad procedure if one is assigned
 procedure TMlLibraryManager.DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
     aStream: TStream; var aFreeStream: Boolean);
@@ -216,6 +183,11 @@ begin
   Result := GetModuleFileName(aHandle, ModName, Length(ModName)) <> 0;
 end;
 
+function TMlLibraryManager.IsMemLoaded(aHandle: TLibHandle): Boolean;
+begin
+  Result := fHandleHash.Find(aHandle);
+end;
+
 /// LoadLibraryMem: aName is compared to the loaded libraries and if found the
 /// reference count is incremented. If the aName is empty or not found the library is loaded
 function TMlLibraryManager.LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle;
@@ -238,7 +210,7 @@ begin
         fLibs.Add(Loader); // It is added to the list first because loading checks its own handle (in LoadPackageMl)
         Loader.OnDependencyLoad := DoDependencyLoad;
         Loader.LoadFromStream(aStream, aLibFileName);
-        fHandleHash.Add(Loader.Handle, TObject(Loader));
+        fHandleHash.Add(Loader.Handle, TObject(Loader));   //how to add the hash before the loading? 
         fNamesHash.Add(aLibFileName, TObject(Loader));
         Result := Loader.Handle;
       except
@@ -279,66 +251,60 @@ end;
 
 function TMlLibraryManager.GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].GetFunctionAddress(lpProcName)
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.GetFunctionAddress(lpProcName)
   else
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
 function TMlLibraryManager.FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].FindResourceMl(lpName, lpType)
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.FindResourceMl(lpName, lpType)
   else
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
 function TMlLibraryManager.LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].LoadResourceMl(hResInfo)
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.LoadResourceMl(hResInfo)
   else
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
 function TMlLibraryManager.SizeOfResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): DWORD;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].SizeOfResourceMl(hResInfo)
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.SizeOfResourceMl(hResInfo)
   else
     raise EMlInvalidHandle.Create('Invalid library handle');
 end;
 
 function TMlLibraryManager.GetModuleFileNameMl(aHandle: TLibHandle): String;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].Name
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.Name
   else
-    raise EMlInvalidHandle.Create('Invalid library handle');
+    Result := '';
 end;
 
 function TMlLibraryManager.GetModuleHandleMl(const aModuleName: String): TLibHandle;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByName(aModuleName);
-  if Index <> -1 then
-    Result := Libs[Index].Handle
+  if fNamesHash.Find(aModuleName, TObject(Lib)) then
+    Result := Lib.Handle
   else
     Result := 0;
 end;
@@ -527,7 +493,7 @@ end;
 
 function TMlHookedLibraryManager.LoadLibraryMl(lpLibFileName: PChar): TLibHandle;
 begin
-  // Just forward the call to the original API and check the result. In the future the handle returned can be checked for clashes
+  // Just forward the call to the original API and check the result
   Result := fLoadLibraryOrig(lpLibFileName);
   Win32Check(Result <> 0);
 end;
