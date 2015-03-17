@@ -38,14 +38,15 @@ type
 {$ENDIF VER130}
 
 type
-  TLoadLibraryFunc       = function (lpLibFileName: PChar)                           : HMODULE; stdcall;
-  TFreeLibraryFunc       = function (hModule: HMODULE)                               : BOOL; stdcall;
-  TGetProcAddressFunc    = function (hModule: HMODULE; lpProcName: LPCSTR)           : FARPROC; stdcall;
-  TFindResourceFunc      = function (hModule: HMODULE; lpName, lpType: PChar)        : HRSRC; stdcall;
-  TLoadResourceFunc      = function (hModule: HMODULE; hResInfo: HRSRC)              : HGLOBAL; stdcall;
-  TSizeofResourceFunc    = function (hModule: HMODULE; hResInfo: HRSRC)              : DWORD; stdcall;
-  TGetModuleFileNameFunc = function (hModule: HINST; lpFilename: PChar; nSize: DWORD): DWORD; stdcall;
-  TGetModuleHandleFunc   = function (lpModuleName: PChar)                            : HMODULE; stdcall;
+  TLoadLibraryFunc       = function (lpLibFileName: PChar)                                : HMODULE; stdcall;
+  TLoadLibraryExFunc     = function (lpLibFileName: PChar; hFile: THandle; dwFlags: DWORD): HMODULE; stdcall;
+  TFreeLibraryFunc       = function (hModule: HMODULE)                                    : BOOL; stdcall;
+  TGetProcAddressFunc    = function (hModule: HMODULE; lpProcName: LPCSTR)                : FARPROC; stdcall;
+  TFindResourceFunc      = function (hModule: HMODULE; lpName, lpType: PChar)             : HRSRC; stdcall;
+  TLoadResourceFunc      = function (hModule: HMODULE; hResInfo: HRSRC)                   : HGLOBAL; stdcall;
+  TSizeofResourceFunc    = function (hModule: HMODULE; hResInfo: HRSRC)                   : DWORD; stdcall;
+  TGetModuleFileNameFunc = function (hModule: HINST; lpFilename: PChar; nSize: DWORD)     : DWORD; stdcall;
+  TGetModuleHandleFunc   = function (lpModuleName: PChar)                                 : HMODULE; stdcall;
   TLoadPackageFunc       = function (const Name: string; AValidatePackage: TValidatePackageProc = nil): HMODULE;
   TUnloadPackageProc     = procedure (Module: HMODULE);
 

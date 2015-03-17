@@ -843,7 +843,7 @@ begin
     Result := HRSRC(Resource.DataEntry);
   end;
   if Result = 0 then
-    ReportError(EOSError, 'Procedure not found in library', ERROR_RESOURCE_NAME_NOT_FOUND);
+    ReportError(EOSError, 'Resource not found in library', ERROR_RESOURCE_NAME_NOT_FOUND);
 end;
 
 /// Return a pointer to the actual resource data in memory

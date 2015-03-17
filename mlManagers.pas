@@ -47,8 +47,10 @@ type
     constructor Create;
     destructor Destroy; override;
     function GetGlobalModuleHandle(const aModuleName: String): TLibHandle;
-    function IsWinLoaded(aHandle: TLibHandle): Boolean; virtual;
-    function IsMemLoaded(aHandle: TLibHandle): Boolean;
+    function IsWinLoaded(aHandle: TLibHandle): Boolean; overload; virtual;
+    function IsWinLoaded(const aLibFileName: String): Boolean; overload; virtual;
+    function IsMemLoaded(aHandle: TLibHandle): Boolean; overload;
+    function IsMemLoaded(const aLibFileName: String): Boolean; overload;
     function LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle; virtual;
     function FreeLibraryMl(aHandle: TLibHandle): Boolean; virtual;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; virtual;
@@ -68,6 +70,7 @@ type
   TMlHookedLibraryManager = class(TMlLibraryManager)
   private
     fLoadLibraryOrig      : TLoadLibraryFunc;
+    fLoadLibraryExOrig    : TLoadLibraryExFunc;
     fFreeLibraryOrig      : TFreeLibraryFunc;
     fGetProcAddressOrig   : TGetProcAddressFunc;
     fFindResourceOrig     : TFindResourceFunc;
@@ -84,8 +87,10 @@ type
     procedure HookAPIs;
     procedure UnhookAPIs;
     function IsWinLoaded(aHandle: TLibHandle): Boolean; override;
+    function IsWinLoaded(const aLibFileName: String): Boolean; override;
     function LoadLibraryMl(lpLibFileName: PChar): TLibHandle; reintroduce; overload;
     function LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle; overload; override;
+    function LoadLibraryExMl(lpLibFileName: PChar; hFile: THandle; dwFlags: DWORD): TLibHandle;
     function FreeLibraryMl(aHandle: TLibHandle): Boolean; override;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; override;
     function FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC; override;
@@ -172,9 +177,19 @@ begin
   Result := GetModuleFileName(aHandle, ModName, Length(ModName)) <> 0;
 end;
 
+function TMlLibraryManager.IsWinLoaded(const aLibFileName: String): Boolean;
+begin
+  Result := GetModuleHandle(PChar(aLibFileName)) <> 0;
+end;
+
 function TMlLibraryManager.IsMemLoaded(aHandle: TLibHandle): Boolean;
 begin
   Result := fHandleHash.Find(aHandle);
+end;
+
+function TMlLibraryManager.IsMemLoaded(const aLibFileName: String): Boolean;
+begin
+  Result := fNamesHash.Find(aLibFileName);
 end;
 
 /// LoadLibraryMem: aName is compared to the loaded libraries and if found the
@@ -386,6 +401,11 @@ begin
   Result := Manager.LoadLibraryMl(lpLibFileName);
 end;
 
+function LoadLibraryExHooked(lpLibFileName: PChar; hFile: THandle; dwFlags: DWORD): HMODULE; stdcall;
+begin
+  Result := Manager.LoadLibraryExMl(lpLibFileName, hFile, dwFlags);
+end;
+
 function FreeLibraryHooked(hModule: HMODULE): BOOL; stdcall;
 begin
   Result := Manager.FreeLibraryMl(hModule);
@@ -446,34 +466,6 @@ begin
   Manager.UnloadPackageMl(Module);
 end;
 
-procedure TMlHookedLibraryManager.HookAPIs;
-begin
-  @fLoadLibraryOrig       := InterceptCreate(@LoadLibrary, @LoadLibraryHooked);
-  @fFreeLibraryOrig       := InterceptCreate(@FreeLibrary, @FreeLibraryHooked);
-  @fFindResourceOrig      := InterceptCreate(@FindResource, @FindResourceHooked);
-  @fLoadResourceOrig      := InterceptCreate(@LoadResource, @LoadResourceHooked);
-  @fSizeofResourceOrig    := InterceptCreate(@SizeofResource, @SizeofResourceHooked);
-  @fGetModuleFileNameOrig := InterceptCreate(@GetModuleFileName, @GetModuleFileNameHooked);
-  @fGetModuleHandleOrig   := InterceptCreate(@GetModuleHandle, @GetModuleHandleHooked);
-  @fGetProcAddressOrig    := InterceptCreate(@GetProcAddress, @GetProcAddressHooked);
-  @fLoadPackageOrig       := InterceptCreate(@LoadPackage, @LoadPackageHooked);
-  @fUnloadPackageOrig     := InterceptCreate(@UnloadPackage, @UnloadPackageHooked);
-end;
-
-procedure TMlHookedLibraryManager.UnhookAPIs;
-begin
-  InterceptRemove(@fLoadLibraryOrig, @LoadLibraryHooked);
-  InterceptRemove(@fFreeLibraryOrig, @FreeLibraryHooked);
-  InterceptRemove(@fFindResourceOrig, @FindResourceHooked);
-  InterceptRemove(@fLoadResourceOrig, @LoadResourceHooked);
-  InterceptRemove(@fSizeofResourceOrig, @SizeofResourceHooked);
-  InterceptRemove(@fGetModuleFileNameOrig, @GetModuleFileNameHooked);
-  InterceptRemove(@fGetModuleHandleOrig, @GetModuleHandleHooked);
-  InterceptRemove(@fGetProcAddressOrig, @GetProcAddressHooked);
-  InterceptRemove(@fLoadPackageOrig, @LoadPackageHooked);
-  InterceptRemove(@fUnloadPackageOrig, @UnloadPackageHooked);
-end;
-
 constructor TMlHookedLibraryManager.Create;
 begin
   inherited;
@@ -489,6 +481,36 @@ begin
   UnhookAPIs; // Unhook the APIs last because they could be used in the inherited destructor when freeing libraries
 end;
 
+procedure TMlHookedLibraryManager.HookAPIs;
+begin
+  @fLoadLibraryOrig       := InterceptCreate(@LoadLibrary, @LoadLibraryHooked);
+  @fLoadLibraryExOrig     := InterceptCreate(@LoadLibraryEx, @LoadLibraryExHooked);
+  @fFreeLibraryOrig       := InterceptCreate(@FreeLibrary, @FreeLibraryHooked);
+  @fFindResourceOrig      := InterceptCreate(@FindResource, @FindResourceHooked);
+  @fLoadResourceOrig      := InterceptCreate(@LoadResource, @LoadResourceHooked);
+  @fSizeofResourceOrig    := InterceptCreate(@SizeofResource, @SizeofResourceHooked);
+  @fGetModuleFileNameOrig := InterceptCreate(@GetModuleFileName, @GetModuleFileNameHooked);
+  @fGetModuleHandleOrig   := InterceptCreate(@GetModuleHandle, @GetModuleHandleHooked);
+  @fGetProcAddressOrig    := InterceptCreate(@GetProcAddress, @GetProcAddressHooked);
+  @fLoadPackageOrig       := InterceptCreate(@LoadPackage, @LoadPackageHooked);
+  @fUnloadPackageOrig     := InterceptCreate(@UnloadPackage, @UnloadPackageHooked);
+end;
+
+procedure TMlHookedLibraryManager.UnhookAPIs;
+begin
+  InterceptRemove(@fLoadLibraryOrig, @LoadLibraryHooked);
+  InterceptRemove(@fLoadLibraryExOrig, @LoadLibraryExHooked);
+  InterceptRemove(@fFreeLibraryOrig, @FreeLibraryHooked);
+  InterceptRemove(@fFindResourceOrig, @FindResourceHooked);
+  InterceptRemove(@fLoadResourceOrig, @LoadResourceHooked);
+  InterceptRemove(@fSizeofResourceOrig, @SizeofResourceHooked);
+  InterceptRemove(@fGetModuleFileNameOrig, @GetModuleFileNameHooked);
+  InterceptRemove(@fGetModuleHandleOrig, @GetModuleHandleHooked);
+  InterceptRemove(@fGetProcAddressOrig, @GetProcAddressHooked);
+  InterceptRemove(@fLoadPackageOrig, @LoadPackageHooked);
+  InterceptRemove(@fUnloadPackageOrig, @UnloadPackageHooked);
+end;
+
 function TMlHookedLibraryManager.IsWinLoaded(aHandle: TLibHandle): Boolean;
 var
   ModName: array[0..0] of Char; // No need for a buffer for the full path, we just care if the handle is valid
@@ -501,17 +523,44 @@ begin
     Result := GetModuleFileName(aHandle, ModName, Length(ModName)) <> 0;
 end;
 
+function TMlHookedLibraryManager.IsWinLoaded(const aLibFileName: String): Boolean;
+begin
+  // Check if the GetModuleHandle is hooked because might be called in the destructor while freeing the libs
+  // and the APIs are already unhooked
+  if Assigned(fGetModuleHandleOrig) then
+    Result := fGetModuleHandleOrig(PChar(aLibFileName)) <> 0
+  else
+    Result := GetModuleHandle(PChar(aLibFileName)) <> 0;
+end;
+
 function TMlHookedLibraryManager.LoadLibraryMl(lpLibFileName: PChar): TLibHandle;
 begin
-  // Just forward the call to the original API and check the result
-  Result := fLoadLibraryOrig(lpLibFileName);
+  // Check if it is loaded from mem already and return the same handle
+  if IsMemLoaded(lpLibFileName) then
+    Result := inherited LoadLibraryMl(nil, lpLibFileName)
+  else
+    Result := fLoadLibraryOrig(lpLibFileName);
   if Result = 0 then
     ReportError(EOSError, SysErrorMessage(GetLastError), GetLastError);
 end;
 
 function TMlHookedLibraryManager.LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle;
 begin
-  Result := inherited LoadLibraryMl(aStream, aLibFileName);
+  if IsWinLoaded(aLibFileName) then
+    Result := fLoadLibraryOrig(PChar(aLibFileName))
+  else
+    Result := inherited LoadLibraryMl(aStream, aLibFileName);
+end;
+
+function TMlHookedLibraryManager.LoadLibraryExMl(lpLibFileName: PChar; hFile: THandle; dwFlags: DWORD): TLibHandle;
+begin
+  // VG 170315: The mem loading LoadLibraryEx is not implemented currently. Only check if it is loaded from disk and
+  // return the same handle(ignoring the flags). Otherwise pass it to the original LoadLibraryEx
+  if IsMemLoaded(lpLibFileName) then
+    Result := inherited LoadLibraryMl(nil, lpLibFileName)
+  else
+    Result := fLoadLibraryExOrig(lpLibFileName, hFile, dwFlags);
+  // No error reporting here because it is often called with locale specific names that don't exist
 end;
 
 function TMlHookedLibraryManager.FreeLibraryMl(aHandle: TLibHandle): Boolean;
