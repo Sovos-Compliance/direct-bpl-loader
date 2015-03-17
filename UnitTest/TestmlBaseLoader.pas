@@ -103,7 +103,7 @@ end;
 procedure TestTMlBaseLoader.TestGetFunctionAddressInvalidName;
 begin
   LoadHelper(DLL_PATH);
-  ExpectedException := EMlProcedureError;
+  ExpectedException := EOSError;
   fMlBaseLoader.GetFunctionAddress('Some invalid function name');
 end;
 
@@ -121,6 +121,7 @@ var
   ResourceFound: HRSRC;
 begin
   LoadHelper(DLL_PATH);
+  ExpectedException := EOSError;
   ResourceFound := fMlBaseLoader.FindResourceMl('Res name that doesn''t exist in the lib', TEST_RES_TYPE);
   CheckEquals(0, ResourceFound);
 end;
@@ -130,6 +131,7 @@ var
   ResourceFound: HRSRC;
 begin
   LoadHelper(DLL_PATH);
+  ExpectedException := EOSError;
   ResourceFound := fMlBaseLoader.FindResourceMl(TEST_RES_NAME, TEST_NONEXISTING_RES_TYPE);
   CheckEquals(0, ResourceFound);
 end;
@@ -168,14 +170,14 @@ end;
 procedure TestTMlBaseLoader.TestLoadResourceInvalidByZeroHandle;
 begin
   LoadHelper(DLL_PATH);
-  ExpectedException := EMlResourceError;
+  ExpectedException := EOSError;
   fMlBaseLoader.LoadResourceMl(0);
 end;
 
 procedure TestTMlBaseLoader.TestLoadResourceInvalidByWrongHandle;
 begin
   LoadHelper(DLL_PATH);
-  ExpectedException := EMlResourceError;
+  ExpectedException := EOSError;
   fMlBaseLoader.LoadResourceMl(TEST_WRONG_RES_HANDLE);
 end;
 
@@ -210,14 +212,14 @@ end;
 procedure TestTMlBaseLoader.TestSizeOfResourceInvalidByZeroHandle;
 begin
   LoadHelper(DLL_PATH);
-  ExpectedException := EMlResourceError;
+  ExpectedException := EOSError;
   fMlBaseLoader.SizeOfResourceMl(0);
 end;
 
 procedure TestTMlBaseLoader.TestSizeOfResourceInvalidByWrongHandle;
 begin
   LoadHelper(DLL_PATH);
-  ExpectedException := EMlResourceError;
+  ExpectedException := EOSError;
   fMlBaseLoader.SizeOfResourceMl(TEST_WRONG_RES_HANDLE);
 end;
 

@@ -13,7 +13,7 @@
 *                                                                              *
 *******************************************************************************}
 
-{$I APIMODE.INC}
+{$I MlDefines.inc}
 {$I DelphiVersion_defines.inc}
 
 unit mlLibrary;
@@ -44,7 +44,7 @@ function LoadPackage(const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePa
 {$ELSE}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
 function LoadLibraryMem(aStream: TStream; const aLibFileName: String): TLibHandle;
-procedure FreeLibraryMem(hModule: TLibHandle);
+function FreeLibraryMem(hModule: TLibHandle): Boolean;
 function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
 function FindResourceMem(hModule: TLibHandle; lpName, lpType: PChar): HRSRC;
 function LoadResourceMem(hModule: TLibHandle; hResInfo: HRSRC): HGLOBAL;
@@ -56,10 +56,11 @@ function GetModuleHandleMem(const ModuleName: String): TLibHandle;
 function LoadPackageMem(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
 procedure UnloadPackageMem(Module: TLibHandle);
+
+function MlGetGlobalModuleHandle(const aLibFileName: String): TLibHandle;
 {$ENDIF MLHOOKED}
 
 /// Helper functions to check module load status and set a callback function
-function MlGetGlobalModuleHandle(const aLibFileName: String): TLibHandle;
 function MlIsWinLoaded(hModule: TLibHandle): Boolean;
 function MlIsMemLoaded(hModule: TLibHandle): Boolean;
 procedure MlSetOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
@@ -115,9 +116,9 @@ begin
   Result := Manager.LoadLibraryMl(aStream, aLibFileName);
 end;
 
-procedure FreeLibraryMem(hModule: TLibHandle);
+function FreeLibraryMem(hModule: TLibHandle): Boolean;
 begin
-  Manager.FreeLibraryMl(hModule);
+  Result := Manager.FreeLibraryMl(hModule);
 end;
 
 function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
@@ -164,12 +165,12 @@ procedure UnloadPackageMem(Module: TLibHandle);
 begin
   Manager.UnloadPackageMl(Module);
 end;
-{$ENDIF MLHOOKED}
 
 function MlGetGlobalModuleHandle(const aLibFileName: String): TLibHandle;
 begin
   Result := Manager.GetGlobalModuleHandle(aLibFileName);
 end;
+{$ENDIF MLHOOKED}
 
 function MlIsWinLoaded(hModule: TLibHandle): Boolean;
 begin

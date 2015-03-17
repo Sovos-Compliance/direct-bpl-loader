@@ -5,6 +5,8 @@
 *                                                                              *
 *******************************************************************************}
 
+{$I MlDefines.inc}
+
 unit mlTypes;
 
 interface
@@ -20,10 +22,7 @@ type
 
   /// Exception classes raised by the "ML" library
   EMlError            = class(Exception);
-  EMlInvalidHandle    = class(EMlError);
   EMlLibraryLoadError = class(EMlError);
-  EMlProcedureError   = class(EMlError);
-  EMlResourceError    = class(EMlError);
 
   /// A Callback function that is called when a library being loaded needs to load a dependent library
   /// The value set in aLoadAction defines how the dependent library should be loaded
@@ -50,8 +49,26 @@ type
   TLoadPackageFunc       = function (const Name: string; AValidatePackage: TValidatePackageProc = nil): HMODULE;
   TUnloadPackageProc     = procedure (Module: HMODULE);
 
+procedure ReportError(aExceptionClass: ExceptClass; const aMsg: String; aLastError: Cardinal);
 
 implementation
+
+/// Helper procedure for raising exceptions
+procedure ReportError(aExceptionClass: ExceptClass; const aMsg: String; aLastError: Cardinal);
+begin
+{$IFDEF ML_ERROR_RAISE}
+  {$IFDEF ML_TRAP_EXCEPTION}
+     try
+  {$ENDIF ML_TRAP_EXCEPTION}
+       raise aExceptionClass.Create(aMsg);
+  {$IFDEF ML_TRAP_EXCEPTION}
+     except
+     end;
+   {$ENDIF ML_TRAP_EXCEPTION}
+{$ELSE}
+  SetLastError(aLastError);
+{$ENDIF ML_ERROR_RAISE}
+end;
 
 end.
 

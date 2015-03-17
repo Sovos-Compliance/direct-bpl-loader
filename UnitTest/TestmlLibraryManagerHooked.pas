@@ -152,7 +152,7 @@ var
 begin
   fMemStream.LoadFromFile(DLL_PATH);
   LibHandle := LoadLibrary(fMemStream, DLL_PATH);
-  ExpectedException := EMlProcedureError;
+  ExpectedException := EOSError;
   GetProcAddress(LibHandle, 'Some invalid function name');
 end;
 
@@ -178,7 +178,7 @@ end;
 
 procedure TestLibraryManagerHooked.TestFreeLibraryMemInvalidHandle;
 begin
-  ExpectedException := EMlInvalidHandle;
+  ExpectedException := EOSError;
   FreeLibrary(TEST_WRONG_LIB_HANDLE);
 end;
 

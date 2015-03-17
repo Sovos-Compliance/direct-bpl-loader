@@ -13,7 +13,7 @@
 *  http://hallvards.blogspot.com/2005/08/ultimate-delphi-ide-start-up-hack.html*
 *******************************************************************************}
 
-{$I APIMODE.INC}
+{$I mlDefines.inc}
 
 unit mlBPLLoader;
 
@@ -383,12 +383,7 @@ end;
 constructor TBPLLoader.Create(aMem: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
 begin
   Create;
-
-  // Auto load the stream if one is passed. Otherwise it has to be loaded manually with LoadFromStream
-  if Assigned(aMem) then
-    LoadFromStream(aMem, aLibFileName)
-  else
-    raise EMlLibraryLoadError.Create('Can not load a library from an unassigned TStream');
+  LoadFromStream(aMem, aLibFileName); // Load the passed stream. Validation is done during loading
 end;
 
 destructor TBPLLoader.Destroy;
