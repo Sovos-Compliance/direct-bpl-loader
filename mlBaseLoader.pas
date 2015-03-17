@@ -25,7 +25,7 @@
 *                                                                              *
 *******************************************************************************}
 
-{$I APIMODE.INC}
+{$I mlDefines.inc}
 
 unit mlBaseLoader;
 
@@ -92,7 +92,7 @@ type
 
     procedure LoadFromStream(aMem: TStream; const aName: String = '');
     procedure Unload;
-
+    
     function GetFunctionAddress(const aName: String): Pointer;
     function FindResourceMl(lpName, lpType: PChar): HRSRC;
     function LoadResourceMl(hResInfo: HRSRC): HGLOBAL;
@@ -509,7 +509,11 @@ begin
     // Otherwise the other module that used the external might unload it, while it is used by this module
 
     // Check the standard API
+{$IFDEF MLHOOKED}
+    Result := GetModuleHandle(PChar(aLibName)); // No need to pass a mem stream. This will just increase the ref count
+{$ELSE}
     Result := MlGetGlobalModuleHandle(aLibName);
+{$ENDIF MLHOOKED}
     if Result <> 0 then
     begin
       if MlIsWinLoaded(Result) then
@@ -588,36 +592,6 @@ begin
   end;
 end;
 
-function TMlBaseLoader.GetExternalLibraryHandle(const aLibName: String): HINST;
-var
-  I : Integer;
-begin
-  Result := 0;
-  for I := 0 to Length(ExternalLibraryArray) - 1 do
-  begin
-    if ExternalLibraryArray[I].LibraryName = aLibName then
-    begin
-      Result := ExternalLibraryArray[I].LibraryHandle;
-      Exit;
-    end;
-  end;
-end;
-
-function TMlBaseLoader.GetExternalLibraryName(aLibHandle: HINST): String;
-var
-  I : Integer;
-begin
-  Result := '';
-  for I := 0 to Length(ExternalLibraryArray) - 1 do
-  begin
-    if ExternalLibraryArray[I].LibraryHandle = aLibHandle then
-    begin
-      Result := ExternalLibraryArray[I].LibraryName;
-      Exit;
-    end;
-  end;
-end;
-
 /// The HRSRS is a pointer to the resource's PImageResourceDataEntry in memory
 /// Validate if it is a valid pointer in the bounds of the RESOURCE section
 function TMlBaseLoader.IsValidResHandle(hResInfo: HRSRC): Boolean;
@@ -648,6 +622,59 @@ begin
       CheckItem(fJclImage.ResourceList[I]);
       if Result then
         Exit;
+    end;
+  end;
+end;
+
+function TMlBaseLoader.GetExternalLibraryHandle(const aLibName: String): HINST;
+var
+  I : Integer;
+begin
+  Result := 0;
+  for I := 0 to Length(ExternalLibraryArray) - 1 do
+  begin
+    if ExternalLibraryArray[I].LibraryName = aLibName then
+    begin
+      Result := ExternalLibraryArray[I].LibraryHandle;
+      Exit;
+    end;
+  end;
+end;
+
+function TMlBaseLoader.GetExternalLibraryName(aLibHandle: HINST): String;
+var
+  I : Integer;
+begin
+  Result := '';
+  for I := 0 to Length(ExternalLibraryArray) - 1 do
+  begin
+    if ExternalLibraryArray[I].LibraryHandle = aLibHandle then
+    begin
+      Result := ExternalLibraryArray[I].LibraryName;
+      Exit;
+    end;
+  end;
+end;
+
+/// Get a proc address, checking if the external lib is loaded from disk or mem
+function TMlBaseLoader.GetExternalLibraryProcAddress(aLibHandle: HINST; aProcName: PChar): FARPROC;
+var
+  I : Integer;
+begin
+  Result := nil;
+  for I := 0 to Length(ExternalLibraryArray) - 1 do
+  begin
+    if ExternalLibraryArray[I].LibraryHandle = aLibHandle then
+    begin
+      if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
+        Result := GetProcAddress(aLibHandle, aProcName)
+      else
+{$IFDEF MLHOOKED}
+        Result := GetProcAddress(aLibHandle, aProcName);
+{$ELSE}
+        Result := GetProcAddressMem(aLibHandle, aProcName);
+{$ENDIF MLHOOKED}
+      Exit;
     end;
   end;
 end;
@@ -796,7 +823,7 @@ begin
       Exit;
     end;
   if Result = nil then
-    raise EMlProcedureError.Create('Procedure not found in library');
+    ReportError(EOSError, 'Procedure not found in library', ERROR_PROC_NOT_FOUND);
 end;
 
 /// Find the resource requested and return a pointer to its data structure
@@ -815,47 +842,28 @@ begin
       Resource := Resource.List[0];
     Result := HRSRC(Resource.DataEntry);
   end;
-end;
-
-/// Get a proc address, checking if the external lib is loaded from disk or mem
-function TMlBaseLoader.GetExternalLibraryProcAddress(aLibHandle: HINST; aProcName: PChar): FARPROC;
-var
-  I : Integer;
-begin
-  Result := nil;
-  for I := 0 to Length(ExternalLibraryArray) - 1 do
-  begin
-    if ExternalLibraryArray[I].LibraryHandle = aLibHandle then
-    begin
-      if ExternalLibraryArray[I].LibrarySource = lsHardDisk then
-        Result := GetProcAddress(aLibHandle, aProcName)
-      else
-{$IFDEF MLHOOKED}
-        Result := GetProcAddress(aLibHandle, aProcName);
-{$ELSE}
-        Result := GetProcAddressMem(aLibHandle, aProcName);
-{$ENDIF MLHOOKED}
-      Exit;
-    end;
-  end;
+  if Result = 0 then
+    ReportError(EOSError, 'Resource not found in library', ERROR_RESOURCE_NAME_NOT_FOUND);
 end;
 
 /// Return a pointer to the actual resource data in memory
 function TMlBaseLoader.LoadResourceMl(hResInfo: HRSRC): HGLOBAL;
 begin
+  Result := 0;
   if IsValidResHandle(hResInfo) then
     Result := HGLOBAL(fJclImage.RvaToVa(PImageResourceDataEntry(hResInfo).OffsetToData))
   else
-    raise EMlResourceError.Create('Invalid resource info handle');
+    ReportError(EOSError, 'Invalid resource info handle', ERROR_INVALID_HANDLE);
 end;
 
 /// Calculate the size of the resource passed
 function TMlBaseLoader.SizeOfResourceMl(hResInfo: HRSRC): DWORD;
 begin
+  Result := 0;
   if IsValidResHandle(hResInfo) then
     Result := PImageResourceDataEntry(hResInfo).Size
   else
-    raise EMlResourceError.Create('Invalid resource info handle');
+    ReportError(EOSError, 'Invalid resource info handle', ERROR_INVALID_HANDLE);
 end;
 
 end.

@@ -28,6 +28,8 @@ type
     procedure TestLoadLibraryMemInvalidStream;
     procedure TestLoadLibraryMemEmptyStream;
     procedure TestLoadLibraryTwice;
+    procedure TestLoadLibraryDiskMem;
+    procedure TestLoadLibraryMemDisk;
     procedure TestGetProcAddressMemValid;
     procedure TestGetProcAddressMemInvalidName;
     procedure TestFindResourceValid;
@@ -130,6 +132,32 @@ begin
   CheckEquals(ReturnValue1, ReturnValue2, 'Library handles should be the same because it is loaded once with RefCount 2');
 end;
 
+procedure TestLibraryManagerHooked.TestLoadLibraryDiskMem;
+var
+  ReturnValue1, ReturnValue2: TLibHandle;
+begin
+  // Load the same lib from disk and mem
+  fMemStream.LoadFromFile(DLL_PATH);
+  ReturnValue1 := LoadLibrary(DLL_PATH);
+  ReturnValue2 := LoadLibrary(fMemStream, DLL_PATH);
+  FreeLibrary(ReturnValue1);
+  FreeLibrary(ReturnValue2);
+  CheckEquals(ReturnValue1, ReturnValue2, 'Library handles should be the same when loading from disk and mem');
+end;
+
+procedure TestLibraryManagerHooked.TestLoadLibraryMemDisk;
+var
+  ReturnValue1, ReturnValue2: TLibHandle;
+begin
+  // Load the same lib from mem and disk
+  fMemStream.LoadFromFile(DLL_PATH);
+  ReturnValue1 := LoadLibrary(fMemStream, DLL_PATH);
+  ReturnValue2 := LoadLibrary(DLL_PATH);
+  FreeLibrary(ReturnValue1);
+  FreeLibrary(ReturnValue2);
+  CheckEquals(ReturnValue1, ReturnValue2, 'Library handles should be the same when loading from mem and disk');
+end;
+
 procedure TestLibraryManagerHooked.TestGetProcAddressMemValid;
 type
   TTestProc = function(A, B: Integer): Integer;
@@ -152,7 +180,7 @@ var
 begin
   fMemStream.LoadFromFile(DLL_PATH);
   LibHandle := LoadLibrary(fMemStream, DLL_PATH);
-  ExpectedException := EMlProcedureError;
+  ExpectedException := EOSError;
   GetProcAddress(LibHandle, 'Some invalid function name');
 end;
 
@@ -178,7 +206,7 @@ end;
 
 procedure TestLibraryManagerHooked.TestFreeLibraryMemInvalidHandle;
 begin
-  ExpectedException := EMlInvalidHandle;
+  ExpectedException := EOSError;
   FreeLibrary(TEST_WRONG_LIB_HANDLE);
 end;
 
@@ -198,7 +226,7 @@ procedure TestLibraryManagerHooked.TestGetModuleFileNameMem;
 var
   LibHandle: TLibHandle;
   ReturnValue: String;
-  ModName: array[0..MAX_PATH + 1] of Char; // No need for a buffer for the full path, we just care if the handle is valid
+  ModName: array[0..MAX_PATH + 1] of Char; 
 begin
   fMemStream.LoadFromFile(DLL_PATH);
   LibHandle := LoadLibrary(fMemStream, DLL_PATH);

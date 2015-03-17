@@ -13,7 +13,7 @@
 *                                                                              *
 *******************************************************************************}
 
-{$I APIMODE.INC}
+{$I mlDefines.inc}
 
 unit mlManagers;
 
@@ -41,19 +41,18 @@ type
     fHandleHash      : TIntegerHashTrie;
     fNamesHash       : TStringHashTrie;
     fOnDependencyLoad: TMlLoadDependentLibraryEvent;
-    function GetLibs(aIndex: Integer): TMlBaseLoader;
-    function LibraryIndexByHandle(aHandle: TLibHandle): Integer;
-    function LibraryIndexByName(const aLibName: String): Integer;
     procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
         TStream; var aFreeStream: Boolean);
-    property Libs[aIndex: Integer]: TMlBaseLoader read GetLibs;
   public
     constructor Create;
     destructor Destroy; override;
     function GetGlobalModuleHandle(const aModuleName: String): TLibHandle;
-    function IsWinLoaded(aHandle: TLibHandle): Boolean; virtual;
+    function IsWinLoaded(aHandle: TLibHandle): Boolean; overload; virtual;
+    function IsWinLoaded(const aLibFileName: String): Boolean; overload; virtual;
+    function IsMemLoaded(aHandle: TLibHandle): Boolean; overload;
+    function IsMemLoaded(const aLibFileName: String): Boolean; overload;
     function LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle; virtual;
-    procedure FreeLibraryMl(aHandle: TLibHandle); virtual;
+    function FreeLibraryMl(aHandle: TLibHandle): Boolean; virtual;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; virtual;
     function FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC; virtual;
     function LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL; virtual;
@@ -71,6 +70,7 @@ type
   TMlHookedLibraryManager = class(TMlLibraryManager)
   private
     fLoadLibraryOrig      : TLoadLibraryFunc;
+    fLoadLibraryExOrig    : TLoadLibraryExFunc;
     fFreeLibraryOrig      : TFreeLibraryFunc;
     fGetProcAddressOrig   : TGetProcAddressFunc;
     fFindResourceOrig     : TFindResourceFunc;
@@ -87,9 +87,11 @@ type
     procedure HookAPIs;
     procedure UnhookAPIs;
     function IsWinLoaded(aHandle: TLibHandle): Boolean; override;
+    function IsWinLoaded(const aLibFileName: String): Boolean; override;
     function LoadLibraryMl(lpLibFileName: PChar): TLibHandle; reintroduce; overload;
     function LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle; overload; override;
-    procedure FreeLibraryMl(aHandle: TLibHandle); override;
+    function LoadLibraryExMl(lpLibFileName: PChar; hFile: THandle; dwFlags: DWORD): TLibHandle;
+    function FreeLibraryMl(aHandle: TLibHandle): Boolean; override;
     function GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC; override;
     function FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC; override;
     function LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL; override;
@@ -112,47 +114,6 @@ var
 {$ENDIF MLHOOKED}
 
 implementation
-
-{ TMlLibraryManager }
-
-function TMlLibraryManager.GetLibs(aIndex: Integer): TMlBaseLoader;
-begin
-  if (aIndex < 0) or (aIndex >= fLibs.Count) then
-    raise Exception.Create('Library index out of bounds');
-  Result := fLibs[aIndex];
-end;
-
-/// Helper method to find the internal index of a loaded library given its handle
-/// Used by most other methods that operate on a handle
-function TMlLibraryManager.LibraryIndexByHandle(aHandle: TLibHandle): Integer;
-var
-  I: Integer;
-begin
-  Result := -1;
-  for I := 0 to fLibs.Count - 1 do
-    if Libs[I].Handle = aHandle then
-    begin
-      Result := I;
-      Exit;
-    end;
-end;
-
-/// Helper method to find the internal index of a loaded library given its handle
-/// Used when loading a library to check if loaded already
-function TMlLibraryManager.LibraryIndexByName(const aLibName: String): Integer;
-var
-  I: Integer;
-begin
-  Result := -1;
-  if aLibName = '' then
-    Exit;
-  for I := 0 to fLibs.Count - 1 do
-    if SameText(Libs[I].Name, ExtractFileName(aLibName)) then
-    begin
-      Result := I;
-      Exit;
-    end;
-end;
 
 /// This method is assigned to each TmlBaseLoader and forwards the event to the global MlOnDependencyLoad procedure if one is assigned
 procedure TMlLibraryManager.DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
@@ -179,14 +140,14 @@ begin
   //VG 131214: This should only be called at the program termination. If the usage is proper, all the libs should
   // have been freed by the user. In case any are left, try to free them forcefully, which could raise exceptions
   // Try to free them as gracefully as possible, without knowing which one requires which, so unload them one at a time
-  // from the begining of the list to the end, and then repeat
+  // from the begining of the list to the end, and then repeat till no libraries remain
   while fLibs.Count > 0 do
   begin
     Counter := 0;
     while Counter < fLibs.Count do
     begin
       try
-        FreeLibraryMl(Libs[Counter].Handle);
+        FreeLibraryMl(TMlBaseLoader(fLibs[Counter]).Handle);
       except
         // Exceptions could be logged if there is some logging library
       end;
@@ -216,6 +177,21 @@ begin
   Result := GetModuleFileName(aHandle, ModName, Length(ModName)) <> 0;
 end;
 
+function TMlLibraryManager.IsWinLoaded(const aLibFileName: String): Boolean;
+begin
+  Result := GetModuleHandle(PChar(aLibFileName)) <> 0;
+end;
+
+function TMlLibraryManager.IsMemLoaded(aHandle: TLibHandle): Boolean;
+begin
+  Result := fHandleHash.Find(aHandle);
+end;
+
+function TMlLibraryManager.IsMemLoaded(const aLibFileName: String): Boolean;
+begin
+  Result := fNamesHash.Find(aLibFileName);
+end;
+
 /// LoadLibraryMem: aName is compared to the loaded libraries and if found the
 /// reference count is incremented. If the aName is empty or not found the library is loaded
 function TMlLibraryManager.LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle;
@@ -241,10 +217,12 @@ begin
         fHandleHash.Add(Loader.Handle, TObject(Loader));
         fNamesHash.Add(aLibFileName, TObject(Loader));
         Result := Loader.Handle;
-      except
-        fLibs.Remove(Loader);
-        Loader.Free;
-        raise;
+      except on E: Exception do
+        begin
+          fLibs.Remove(Loader);
+          Loader.Free;
+          ReportError(EMlLibraryLoadError, E.Message, GetLastError);
+        end;
       end;
     end;
   finally
@@ -253,12 +231,13 @@ begin
 end;
 
 /// Decrement the RefCount of a library on each call and unload/free it if the count reaches 0
-procedure TMlLibraryManager.FreeLibraryMl(aHandle: TLibHandle);
+function TMlLibraryManager.FreeLibraryMl(aHandle: TLibHandle): Boolean;
 var
   Lib: TMlBaseLoader;
 begin
   EnterCriticalSection(fCrit);
   try
+    Result := false;
     if fHandleHash.Find(aHandle, TObject(Lib)) then
     begin
       Lib.RefCount := Lib.RefCount - 1;
@@ -269,9 +248,10 @@ begin
         fNamesHash.Delete(Lib.Name);
         Lib.Free;
       end;
+      Result := true;
     end
     else
-      raise EMlInvalidHandle.Create('Invalid library handle');
+      ReportError(EOSError, 'Invalid library handle', ERROR_INVALID_HANDLE);
   finally
     LeaveCriticalSection(fCrit);
   end;
@@ -279,68 +259,74 @@ end;
 
 function TMlLibraryManager.GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].GetFunctionAddress(lpProcName)
+  Result := nil;
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.GetFunctionAddress(lpProcName)
   else
-    raise EMlInvalidHandle.Create('Invalid library handle');
+    ReportError(EOSError, 'Invalid library handle', ERROR_INVALID_HANDLE);
 end;
 
 function TMlLibraryManager.FindResourceMl(aHandle: TLibHandle; lpName, lpType: PChar): HRSRC;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].FindResourceMl(lpName, lpType)
+  Result := 0;
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.FindResourceMl(lpName, lpType)
   else
-    raise EMlInvalidHandle.Create('Invalid library handle');
+    ReportError(EOSError, 'Invalid library handle', ERROR_INVALID_HANDLE);
 end;
 
 function TMlLibraryManager.LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].LoadResourceMl(hResInfo)
+  Result := 0;
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.LoadResourceMl(hResInfo)
   else
-    raise EMlInvalidHandle.Create('Invalid library handle');
+    ReportError(EOSError, 'Invalid library handle', ERROR_INVALID_HANDLE);
 end;
 
 function TMlLibraryManager.SizeOfResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): DWORD;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].SizeOfResourceMl(hResInfo)
+  Result := 0;
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.SizeOfResourceMl(hResInfo)
   else
-    raise EMlInvalidHandle.Create('Invalid library handle');
+    ReportError(EOSError, 'Invalid library handle', ERROR_INVALID_HANDLE);
 end;
 
 function TMlLibraryManager.GetModuleFileNameMl(aHandle: TLibHandle): String;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByHandle(aHandle);
-  if Index <> -1 then
-    Result := Libs[Index].Name
+  if fHandleHash.Find(aHandle, TObject(Lib)) then
+    Result := Lib.Name
   else
-    raise EMlInvalidHandle.Create('Invalid library handle');
+  begin
+    // Raising an exception here breaks hooked LoadLibrary, so don't use ReportError for the moment
+    Result := '';
+    SetLastError(ERROR_INVALID_HANDLE);
+  end;
 end;
 
 function TMlLibraryManager.GetModuleHandleMl(const aModuleName: String): TLibHandle;
 var
-  Index: Integer;
+  Lib: TMlBaseLoader;
 begin
-  Index := LibraryIndexByName(aModuleName);
-  if Index <> -1 then
-    Result := Libs[Index].Handle
+  if fNamesHash.Find(aModuleName, TObject(Lib)) then
+    Result := Lib.Handle
   else
+  begin
+    // Raising an exception here breaks hooked LoadPackage, so don't use ReportError for the moment
     Result := 0;
+    SetLastError(ERROR_INVALID_NAME);
+  end;
 end;
 
 /// Function to emulate the LoadPackage from a stream
@@ -369,10 +355,12 @@ begin
         fHandleHash.Add(Loader.Handle, TObject(Loader));
         fNamesHash.Add(aLibFileName, TObject(Loader));
         Result := Loader.Handle;
-      except
-        fLibs.Remove(Loader);
-        Loader.Free;
-        raise;
+      except on E: Exception do
+        begin
+          fLibs.Remove(Loader);
+          Loader.Free;
+          ReportError(EPackageError, E.Message, GetLastError);
+        end;
       end;
     end;
   finally
@@ -398,7 +386,7 @@ begin
       end;
     end
     else
-      raise EMlInvalidHandle.Create('Invalid library handle');
+      ReportError(EPackageError, SInvalidPackageHandle, ERROR_INVALID_HANDLE);
   finally
     LeaveCriticalSection(fCrit);
   end;
@@ -413,10 +401,14 @@ begin
   Result := Manager.LoadLibraryMl(lpLibFileName);
 end;
 
+function LoadLibraryExHooked(lpLibFileName: PChar; hFile: THandle; dwFlags: DWORD): HMODULE; stdcall;
+begin
+  Result := Manager.LoadLibraryExMl(lpLibFileName, hFile, dwFlags);
+end;
+
 function FreeLibraryHooked(hModule: HMODULE): BOOL; stdcall;
 begin
-  Manager.FreeLibraryMl(hModule);
-  Result := true;
+  Result := Manager.FreeLibraryMl(hModule);
 end;
 
 function GetProcAddressHooked(hModule: HMODULE; lpProcName: LPCSTR): FARPROC; stdcall;
@@ -443,16 +435,20 @@ function GetModuleFileNameHooked(hModule: HINST; lpFilename: PChar; nSize: DWORD
 var
   S: String;
 begin
+  Result := 0;
   S := Manager.GetModuleFileNameMl(hModule);
-  StrLCopy(lpFilename, PChar(S), nSize);
-  // Mimic the behaviour of the original GetModuleFileName API with settings the result and error code
-  // VG 251114: Can be replaced with an exception if needed
-  if Cardinal(Length(S)) > nSize then
+  if S <> '' then
   begin
-    Result := nSize + 1;
-    SetLastError(ERROR_INSUFFICIENT_BUFFER);
-  end else
-    Result := Length(S);
+    StrLCopy(lpFilename, PChar(S), nSize);
+    // Mimic the behaviour of the original GetModuleFileName API with settings the result and error code
+    // VG 251114: Can be replaced with an exception if needed
+    if Cardinal(Length(S)) > nSize then
+    begin
+      Result := nSize + 1;
+      SetLastError(ERROR_INSUFFICIENT_BUFFER);
+    end else
+      Result := Length(S);
+  end;
 end;
 
 function GetModuleHandleHooked(lpModuleName: PChar): HMODULE; stdcall;
@@ -470,34 +466,6 @@ begin
   Manager.UnloadPackageMl(Module);
 end;
 
-procedure TMlHookedLibraryManager.HookAPIs;
-begin
-  @fLoadLibraryOrig       := InterceptCreate(@LoadLibrary, @LoadLibraryHooked);
-  @fFreeLibraryOrig       := InterceptCreate(@FreeLibrary, @FreeLibraryHooked);
-  @fFindResourceOrig      := InterceptCreate(@FindResource, @FindResourceHooked);
-  @fLoadResourceOrig      := InterceptCreate(@LoadResource, @LoadResourceHooked);
-  @fSizeofResourceOrig    := InterceptCreate(@SizeofResource, @SizeofResourceHooked);
-  @fGetModuleFileNameOrig := InterceptCreate(@GetModuleFileName, @GetModuleFileNameHooked);
-  @fGetModuleHandleOrig   := InterceptCreate(@GetModuleHandle, @GetModuleHandleHooked);
-  @fGetProcAddressOrig    := InterceptCreate(@GetProcAddress, @GetProcAddressHooked);
-  @fLoadPackageOrig       := InterceptCreate(@LoadPackage, @LoadPackageHooked);
-  @fUnloadPackageOrig     := InterceptCreate(@UnloadPackage, @UnloadPackageHooked);
-end;
-
-procedure TMlHookedLibraryManager.UnhookAPIs;
-begin
-  InterceptRemove(@fLoadLibraryOrig, @LoadLibraryHooked);
-  InterceptRemove(@fFreeLibraryOrig, @FreeLibraryHooked);
-  InterceptRemove(@fFindResourceOrig, @FindResourceHooked);
-  InterceptRemove(@fLoadResourceOrig, @LoadResourceHooked);
-  InterceptRemove(@fSizeofResourceOrig, @SizeofResourceHooked);
-  InterceptRemove(@fGetModuleFileNameOrig, @GetModuleFileNameHooked);
-  InterceptRemove(@fGetModuleHandleOrig, @GetModuleHandleHooked);
-  InterceptRemove(@fGetProcAddressOrig, @GetProcAddressHooked);
-  InterceptRemove(@fLoadPackageOrig, @LoadPackageHooked);
-  InterceptRemove(@fUnloadPackageOrig, @UnloadPackageHooked);
-end;
-
 constructor TMlHookedLibraryManager.Create;
 begin
   inherited;
@@ -513,6 +481,36 @@ begin
   UnhookAPIs; // Unhook the APIs last because they could be used in the inherited destructor when freeing libraries
 end;
 
+procedure TMlHookedLibraryManager.HookAPIs;
+begin
+  @fLoadLibraryOrig       := InterceptCreate(@LoadLibrary, @LoadLibraryHooked);
+  @fLoadLibraryExOrig     := InterceptCreate(@LoadLibraryEx, @LoadLibraryExHooked);
+  @fFreeLibraryOrig       := InterceptCreate(@FreeLibrary, @FreeLibraryHooked);
+  @fFindResourceOrig      := InterceptCreate(@FindResource, @FindResourceHooked);
+  @fLoadResourceOrig      := InterceptCreate(@LoadResource, @LoadResourceHooked);
+  @fSizeofResourceOrig    := InterceptCreate(@SizeofResource, @SizeofResourceHooked);
+  @fGetModuleFileNameOrig := InterceptCreate(@GetModuleFileName, @GetModuleFileNameHooked);
+  @fGetModuleHandleOrig   := InterceptCreate(@GetModuleHandle, @GetModuleHandleHooked);
+  @fGetProcAddressOrig    := InterceptCreate(@GetProcAddress, @GetProcAddressHooked);
+  @fLoadPackageOrig       := InterceptCreate(@LoadPackage, @LoadPackageHooked);
+  @fUnloadPackageOrig     := InterceptCreate(@UnloadPackage, @UnloadPackageHooked);
+end;
+
+procedure TMlHookedLibraryManager.UnhookAPIs;
+begin
+  InterceptRemove(@fLoadLibraryOrig, @LoadLibraryHooked);
+  InterceptRemove(@fLoadLibraryExOrig, @LoadLibraryExHooked);
+  InterceptRemove(@fFreeLibraryOrig, @FreeLibraryHooked);
+  InterceptRemove(@fFindResourceOrig, @FindResourceHooked);
+  InterceptRemove(@fLoadResourceOrig, @LoadResourceHooked);
+  InterceptRemove(@fSizeofResourceOrig, @SizeofResourceHooked);
+  InterceptRemove(@fGetModuleFileNameOrig, @GetModuleFileNameHooked);
+  InterceptRemove(@fGetModuleHandleOrig, @GetModuleHandleHooked);
+  InterceptRemove(@fGetProcAddressOrig, @GetProcAddressHooked);
+  InterceptRemove(@fLoadPackageOrig, @LoadPackageHooked);
+  InterceptRemove(@fUnloadPackageOrig, @UnloadPackageHooked);
+end;
+
 function TMlHookedLibraryManager.IsWinLoaded(aHandle: TLibHandle): Boolean;
 var
   ModName: array[0..0] of Char; // No need for a buffer for the full path, we just care if the handle is valid
@@ -525,24 +523,55 @@ begin
     Result := GetModuleFileName(aHandle, ModName, Length(ModName)) <> 0;
 end;
 
+function TMlHookedLibraryManager.IsWinLoaded(const aLibFileName: String): Boolean;
+begin
+  // Check if the GetModuleHandle is hooked because might be called in the destructor while freeing the libs
+  // and the APIs are already unhooked
+  if Assigned(fGetModuleHandleOrig) then
+    Result := fGetModuleHandleOrig(PChar(aLibFileName)) <> 0
+  else
+    Result := GetModuleHandle(PChar(aLibFileName)) <> 0;
+end;
+
 function TMlHookedLibraryManager.LoadLibraryMl(lpLibFileName: PChar): TLibHandle;
 begin
-  // Just forward the call to the original API and check the result. In the future the handle returned can be checked for clashes
-  Result := fLoadLibraryOrig(lpLibFileName);
-  Win32Check(Result <> 0);
+  // Check if it is loaded from mem already and return the same handle
+  if IsMemLoaded(lpLibFileName) then
+    Result := inherited LoadLibraryMl(nil, lpLibFileName)
+  else
+    Result := fLoadLibraryOrig(lpLibFileName);
+  if Result = 0 then
+    ReportError(EOSError, SysErrorMessage(GetLastError), GetLastError);
 end;
 
 function TMlHookedLibraryManager.LoadLibraryMl(aStream: TStream; const aLibFileName: String): TLibHandle;
 begin
-  Result := inherited LoadLibraryMl(aStream, aLibFileName);
+  if IsWinLoaded(aLibFileName) then
+    Result := fLoadLibraryOrig(PChar(aLibFileName))
+  else
+    Result := inherited LoadLibraryMl(aStream, aLibFileName);
 end;
 
-procedure TMlHookedLibraryManager.FreeLibraryMl(aHandle: TLibHandle);
+function TMlHookedLibraryManager.LoadLibraryExMl(lpLibFileName: PChar; hFile: THandle; dwFlags: DWORD): TLibHandle;
+begin
+  // VG 170315: The mem loading LoadLibraryEx is not implemented currently. Only check if it is loaded from disk and
+  // return the same handle(ignoring the flags). Otherwise pass it to the original LoadLibraryEx
+  if IsMemLoaded(lpLibFileName) then
+    Result := inherited LoadLibraryMl(nil, lpLibFileName)
+  else
+    Result := fLoadLibraryExOrig(lpLibFileName, hFile, dwFlags);
+  // No error reporting here because it is often called with locale specific names that don't exist
+end;
+
+function TMlHookedLibraryManager.FreeLibraryMl(aHandle: TLibHandle): Boolean;
 begin
   if IsWinLoaded(aHandle) then
-    Win32Check(fFreeLibraryOrig(aHandle))
-  else
-    inherited;
+  begin
+    Result := fFreeLibraryOrig(aHandle);
+    if not Result then
+      ReportError(EOSError, SysErrorMessage(GetLastError), GetLastError);
+  end else
+    Result := inherited FreeLibraryMl(aHandle);
 end;
 
 function TMlHookedLibraryManager.GetProcAddressMl(aHandle: TLibHandle; lpProcName: LPCSTR): FARPROC;
@@ -550,7 +579,8 @@ begin
   if IsWinLoaded(aHandle) then
   begin
     Result := fGetProcAddressOrig(aHandle, lpProcName);
-    Win32Check(Assigned(Result));
+    if not Assigned(Result) then
+      ReportError(EOSError, SysErrorMessage(GetLastError), GetLastError);
   end else
     Result := inherited GetProcAddressMl(aHandle, lpProcName);
 end;
@@ -560,7 +590,8 @@ begin
   if IsWinLoaded(aHandle) then
   begin
     Result := fFindResourceOrig(aHandle, lpName, lpType);
-    Win32Check(Result <> 0);
+    if Result = 0 then
+      ReportError(EOSError, SysErrorMessage(GetLastError), GetLastError);
   end else
     Result := inherited FindResourceMl(aHandle, lpName, lpType);
 end;
@@ -570,7 +601,8 @@ begin
   if IsWinLoaded(aHandle) then
   begin
     Result := fLoadResourceOrig(aHandle, hResInfo);
-    Win32Check(Result <> 0);
+    if Result = 0 then
+      ReportError(EOSError, SysErrorMessage(GetLastError), GetLastError);
   end else
     Result := inherited LoadResourceMl(aHandle, hResInfo);
 end;
@@ -580,7 +612,8 @@ begin
   if IsWinLoaded(aHandle) then
   begin
     Result := fSizeofResourceOrig(aHandle, hResInfo);
-    Win32Check(Result <> 0);
+    if Result = 0 then
+      ReportError(EOSError, SysErrorMessage(GetLastError), GetLastError);
   end else
     Result := inherited SizeOfResourceMl(aHandle, hResInfo);
 end;
@@ -593,7 +626,6 @@ begin
   begin
     SetLength(Result, MAX_PATH + 1);
     NameLen := fGetModuleFileNameOrig(aHandle, @Result[1], MAX_PATH);
-    Win32Check(NameLen <> 0);
     SetLength(Result, NameLen);
   end else
     Result := inherited GetModuleFileNameMl(aHandle);

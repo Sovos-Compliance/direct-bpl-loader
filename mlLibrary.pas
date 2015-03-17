@@ -13,7 +13,7 @@
 *                                                                              *
 *******************************************************************************}
 
-{$I APIMODE.INC}
+{$I MlDefines.inc}
 {$I DelphiVersion_defines.inc}
 
 unit mlLibrary;
@@ -33,15 +33,18 @@ uses
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
 function LoadLibrary(aStream: TStream; lpLibFileName: PChar): HMODULE; overload;
 function LoadLibrary(aStream: TStream; const aLibFileName: String): HMODULE; overload;
+function LoadLibrary(lpLibFileName: PChar): HMODULE; overload;
 
 /// BPL loading functions
 function LoadPackage(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+    TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
+function LoadPackage(const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
 
 {$ELSE}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
 function LoadLibraryMem(aStream: TStream; const aLibFileName: String): TLibHandle;
-procedure FreeLibraryMem(hModule: TLibHandle);
+function FreeLibraryMem(hModule: TLibHandle): Boolean;
 function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
 function FindResourceMem(hModule: TLibHandle; lpName, lpType: PChar): HRSRC;
 function LoadResourceMem(hModule: TLibHandle; hResInfo: HRSRC): HGLOBAL;
@@ -53,11 +56,13 @@ function GetModuleHandleMem(const ModuleName: String): TLibHandle;
 function LoadPackageMem(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
 procedure UnloadPackageMem(Module: TLibHandle);
+
+function MlGetGlobalModuleHandle(const aLibFileName: String): TLibHandle;
 {$ENDIF MLHOOKED}
 
 /// Helper functions to check module load status and set a callback function
-function MlGetGlobalModuleHandle(const aLibFileName: String): TLibHandle;
-function MlIsWinLoaded(hModule: TLibHandle): Boolean; overload;
+function MlIsWinLoaded(hModule: TLibHandle): Boolean;
+function MlIsMemLoaded(hModule: TLibHandle): Boolean;
 procedure MlSetOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
 
 //TODO VG 090714: This method is used only to reset the loader during unit testing. Can be removed
@@ -81,6 +86,11 @@ begin
   Result := Manager.LoadLibraryMl(aStream, aLibFileName);
 end;
 
+function LoadLibrary(lpLibFileName: PChar): HMODULE;
+begin
+  Result := Manager.LoadLibraryMl(lpLibFileName);
+end;
+
 { ============ Hooked BPL Library memory functions ============ }
 { ============================================================= }
 
@@ -88,6 +98,12 @@ function LoadPackage(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI
     TValidatePackageProc = nil{$ENDIF}): TLibHandle;
 begin
   Result := Manager.LoadPackageMl(aStream, aLibFileName, {$IFDEF DELPHI2007} aValidatePackage {$ELSE} nil {$ENDIF});
+end;
+
+function LoadPackage(const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
+    TValidatePackageProc = nil{$ENDIF}): TLibHandle;
+begin
+  Result := Manager.LoadPackageMl(aLibFileName, {$IFDEF DELPHI2007} aValidatePackage {$ELSE} nil {$ENDIF});
 end;
 
 
@@ -100,9 +116,9 @@ begin
   Result := Manager.LoadLibraryMl(aStream, aLibFileName);
 end;
 
-procedure FreeLibraryMem(hModule: TLibHandle);
+function FreeLibraryMem(hModule: TLibHandle): Boolean;
 begin
-  Manager.FreeLibraryMl(hModule);
+  Result := Manager.FreeLibraryMl(hModule);
 end;
 
 function GetProcAddressMem(hModule: TLibHandle; lpProcName: LPCSTR): FARPROC;
@@ -149,16 +165,21 @@ procedure UnloadPackageMem(Module: TLibHandle);
 begin
   Manager.UnloadPackageMl(Module);
 end;
-{$ENDIF MLHOOKED}
 
 function MlGetGlobalModuleHandle(const aLibFileName: String): TLibHandle;
 begin
   Result := Manager.GetGlobalModuleHandle(aLibFileName);
 end;
+{$ENDIF MLHOOKED}
 
 function MlIsWinLoaded(hModule: TLibHandle): Boolean;
 begin
   Result := Manager.IsWinLoaded(hModule);
+end;
+
+function MlIsMemLoaded(hModule: TLibHandle): Boolean;
+begin
+  Result := Manager.IsMemLoaded(hModule);
 end;
 
 procedure MlSetOnLoadCallback(aCallbackProc: TMlLoadDependentLibraryEvent);
