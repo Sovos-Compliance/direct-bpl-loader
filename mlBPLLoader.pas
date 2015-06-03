@@ -24,6 +24,7 @@ uses
   SysUtils,
   SysConst,
   Classes,
+  HashTrie,
   mlBaseLoader,
   mlTypes;
 
@@ -83,7 +84,9 @@ type
     constructor Create; overload;
     constructor Create(aMem: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc = nil); overload;
     destructor Destroy; override;
-    procedure LoadFromStream(aMem: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc = nil);
+    procedure LoadFromStream(aMem: TStream; const aLibFileName: String;
+        aValidatePackage: TValidatePackageProc = nil; aHandleHash: TIntegerHashTrie
+        = nil; aNamesHash: TStringHashTrie = nil);
     procedure Unload; overload;
   end;
 
@@ -398,8 +401,9 @@ begin
   end;
 end;
 
-procedure TBPLLoader.LoadFromStream(aMem: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc =
-    nil);
+procedure TBPLLoader.LoadFromStream(aMem: TStream; const aLibFileName: String;
+    aValidatePackage: TValidatePackageProc = nil; aHandleHash: TIntegerHashTrie
+    = nil; aNamesHash: TStringHashTrie = nil);
 begin
   if aLibFileName = '' then
     raise EMlLibraryLoadError.Create('The package file name can not be empty');
@@ -408,7 +412,7 @@ begin
     raise EMlLibraryLoadError.CreateFmt('The %s package is already loaded from disk with the regular LoadPackage.' + #13#10 +
       ' Loading it again from memory will result in unpredicted behaviour.', [aLibFileName]);
 
-  inherited LoadFromStream(aMem, aLibFileName);
+  inherited LoadFromStream(aMem, aLibFileName, aHandleHash, aNamesHash);
   try
     Assert(Handle <> 0, 'The Handle of a package must be assigned before loading it from a stream. It is used in RegisterModule');
     InitializePackage(Cardinal(Handle), aValidatePackage);

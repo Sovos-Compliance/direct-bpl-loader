@@ -41,8 +41,8 @@ type
     fHandleHash      : TIntegerHashTrie;
     fNamesHash       : TStringHashTrie;
     fOnDependencyLoad: TMlLoadDependentLibraryEvent;
-    procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
-        TStream; var aFreeStream: Boolean);
+    procedure DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream: TStream;
+        var aFreeStream: Boolean; var aLoadedHandle: TLibHandle);
   public
     constructor Create;
     destructor Destroy; override;
@@ -117,10 +117,10 @@ implementation
 
 /// This method is assigned to each TmlBaseLoader and forwards the event to the global MlOnDependencyLoad procedure if one is assigned
 procedure TMlLibraryManager.DoDependencyLoad(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-    aStream: TStream; var aFreeStream: Boolean);
+    aStream: TStream; var aFreeStream: Boolean; var aLoadedHandle: TLibHandle);
 begin
   if Assigned(fOnDependencyLoad) then
-    fOnDependencyLoad(aLibName, aDependentLib, aLoadAction, aStream, aFreeStream);
+    fOnDependencyLoad(aLibName, aDependentLib, aLoadAction, aStream, aFreeStream, aLoadedHandle);
 end;
 
 constructor TMlLibraryManager.Create;
@@ -211,11 +211,9 @@ begin
       // Or load the library if it is a new one
       Loader := TMlBaseLoader.Create;
       try
-        fLibs.Add(Loader); // It is added to the list first because loading checks its own handle (in LoadPackageMl)
+        fLibs.Add(Loader);
         Loader.OnDependencyLoad := DoDependencyLoad;
-        Loader.LoadFromStream(aStream, aLibFileName);
-        fHandleHash.Add(Loader.Handle, TObject(Loader));
-        fNamesHash.Add(aLibFileName, TObject(Loader));
+        Loader.LoadFromStream(aStream, aLibFileName, fHandleHash, fNamesHash);
         Result := Loader.Handle;
       except on E: Exception do
         begin
@@ -349,11 +347,9 @@ begin
       // Or load the library if it is a new one
       Loader := TBPLLoader.Create;
       try
-        fLibs.Add(Loader); // It is added to the list first because loading checks its own handle (in LoadPackageMl)
+        fLibs.Add(Loader);
         Loader.OnDependencyLoad := DoDependencyLoad;
-        Loader.LoadFromStream(aStream, aLibFileName, aValidatePackage);
-        fHandleHash.Add(Loader.Handle, TObject(Loader));
-        fNamesHash.Add(aLibFileName, TObject(Loader));
+        Loader.LoadFromStream(aStream, aLibFileName, aValidatePackage, fHandleHash, fNamesHash);
         Result := Loader.Handle;
       except on E: Exception do
         begin
