@@ -29,11 +29,13 @@ type
   ///   laDiscard - don't load the library
   ///   laHardDrive - load the library with the standard LoadLibrary Windows API
   ///   laStream - load the library from the stream passed in aStream (which has to be freed later)
-  TLoadAction = (laHardDisk, laStream, laDiscard);
+  ///   laLoaded - the library is loaded by the callback and the handle returned to the caller
+  TLoadAction = (laHardDisk, laStream, laDiscard, laLoaded);
   TMlLoadDependentLibraryEvent = procedure(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-      aStream: TStream; var aFreeStream: Boolean) of object;
+      aStream: TStream; var aFreeStream: Boolean; var aLoadedHandle: TLibHandle) of object;
 
 {$IFDEF VER130}
+  EOSError             = class(Exception);
   TValidatePackageProc = function (Module: HMODULE): Boolean;
 {$ENDIF VER130}
 

@@ -17,9 +17,9 @@ type
     fMemStream: TMemoryStream;
     fEventCalled: Boolean;
     procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream: TStream; var
-        aFreeStream: Boolean);
+        aFreeStream: Boolean; var aLoadedHandle: TLibHandle);
     procedure TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
-        TStream; var aFreeStream: Boolean);
+        TStream; var aFreeStream: Boolean; var aLoadedHandle: TLibHandle);
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -50,13 +50,13 @@ type
 implementation
 
 procedure TestLibraryManager.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var
-    aStream: TStream; var aFreeStream: Boolean);
+    aStream: TStream; var aFreeStream: Boolean; var aLoadedHandle: TLibHandle);
 begin
   fEventCalled := true;
 end;
 
 procedure TestLibraryManager.TestEventLoadActionFromMem(const aLibName, aDependentLib: String; var aLoadAction:
-    TLoadAction; var aStream: TStream; var aFreeStream: Boolean);
+    TLoadAction; var aStream: TStream; var aFreeStream: Boolean; var aLoadedHandle: TLibHandle);
 var
   SourceFile: String;
 begin

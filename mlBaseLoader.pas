@@ -37,6 +37,7 @@ uses
   SysUtils,
   JclPeImage,
   JclWin32,
+  HashTrie,
   mlTypes,
   mlPEHeaders;
 
@@ -90,7 +91,8 @@ type
     constructor Create; overload;
     destructor Destroy; override;
 
-    procedure LoadFromStream(aMem: TStream; const aName: String = '');
+    procedure LoadFromStream(aMem: TStream; const aName: String = ''; aHandleHash:
+        TIntegerHashTrie = nil; aNamesHash: TStringHashTrie = nil);
     procedure Unload;
     
     function GetFunctionAddress(const aName: String): Pointer;
@@ -497,6 +499,7 @@ var
   LibStream : TStream;
   FreeStream: Boolean;
   Source    : TExternalLibrarySource;
+  LoadedHandle: TLibHandle;
 begin
   // Check the array of already loaded external libraries
   Result := GetExternalLibraryHandle(aLibName);
@@ -510,7 +513,7 @@ begin
 
     // Check the standard API
 {$IFDEF MLHOOKED}
-    Result := GetModuleHandle(PChar(aLibName)); // No need to pass a mem stream. This will just increase the ref count
+    Result := GetModuleHandle(PChar(aLibName));
 {$ELSE}
     Result := MlGetGlobalModuleHandle(aLibName);
 {$ENDIF MLHOOKED}
@@ -541,8 +544,9 @@ begin
       LoadAction := laHardDisk;
       LibStream  := nil;
       FreeStream := false;
+      LoadedHandle := 0;
       if Assigned(fOnDependencyLoad) then
-        fOnDependencyLoad(fName, aLibName, LoadAction, LibStream, FreeStream);
+        fOnDependencyLoad(fName, aLibName, LoadAction, LibStream, FreeStream, LoadedHandle);
 
       Source := lsHardDisk;
       case LoadAction of
@@ -577,6 +581,19 @@ begin
             Source := lsStream;
             if FreeStream then
               FreeAndNil(LibStream);
+          end;
+        laLoaded:
+          begin
+            // The loading has been done by the callback function and the handle returned in LoadedHandle
+            // Only need to record it in the array and to check if it is mem or disk loaded so it can be freed later
+            if LoadedHandle = 0 then
+              raise EMlLibraryLoadError.CreateFmt('Required library %s returned handle invalid',
+                [aLibName]);
+            Result := LoadedHandle;
+            if MlIsMemLoaded(LoadedHandle) then
+              Source := lsStream
+            else
+              Source := lsHardDisk;
           end;
         laDiscard:  //VG 010814: TODO: Is this really necessary? What usage would it have?
           begin
@@ -708,7 +725,8 @@ begin
 end;
 
 /// Main method to load the library in memory and process the sections, imports, exports, resources, etc
-procedure TMlBaseLoader.LoadFromStream(aMem: TStream; const aName: String = '');
+procedure TMlBaseLoader.LoadFromStream(aMem: TStream; const aName: String = '';
+    aHandleHash: TIntegerHashTrie = nil; aNamesHash: TStringHashTrie = nil);
 begin
   if fLoaded then
     raise EMlLibraryLoadError.Create('There is a loaded library. Please unload it first');
@@ -732,7 +750,23 @@ begin
               if ProcessExports then
                 if ProcessResources then
                   if ProtectSections then
-                    fLoaded := InitializeLibrary;
+                  begin
+                    // The Base loader has the ability to add the handle and name to a passed hash tree
+                    // These trees are used by the Manager to keep track of libraries. Some DLLs/BPLs reference
+                    // their own handles in the Initialization sections to the manager has to know them in advance
+                    try
+                      if Assigned(aHandleHash) then
+                        aHandleHash.Add(fHandle, TObject(Self));
+                      if Assigned(aNamesHash) then
+                        aNamesHash.Add(fName, TObject(Self));
+                      fLoaded := InitializeLibrary;
+                    except
+                      if Assigned(aHandleHash) then
+                        aHandleHash.Delete(fHandle);
+                      if Assigned(aNamesHash) then
+                        aNamesHash.Delete(fName);
+                    end
+                  end;
   fStream := nil;
 
   if fLoaded then
@@ -740,6 +774,10 @@ begin
   else
   begin
     Unload;
+    if Assigned(aHandleHash) then
+      aHandleHash.Delete(fHandle);
+    if Assigned(aNamesHash) then
+      aNamesHash.Delete(fName);
     raise EMlLibraryLoadError.Create('Library could not be loaded from memory');
   end;
 end;

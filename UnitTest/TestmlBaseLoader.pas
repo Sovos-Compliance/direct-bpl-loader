@@ -20,7 +20,7 @@ type
     fEventCalled: Boolean;
     procedure LoadHelper(aPath: String);
     procedure TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream: TStream; var
-        aFreeStream: Boolean);
+        aFreeStream: Boolean; var aLoadedHandle: TLibHandle);
   public
     procedure SetUp; override;
     procedure TearDown; override;
@@ -224,7 +224,7 @@ begin
 end;
 
 procedure TestTMlBaseLoader.TestEvent(const aLibName, aDependentLib: String; var aLoadAction: TLoadAction; var aStream:
-    TStream; var aFreeStream: Boolean);
+    TStream; var aFreeStream: Boolean; var aLoadedHandle: TLibHandle);
 begin
   fEventCalled := true;
 end;
