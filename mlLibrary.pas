@@ -38,8 +38,6 @@ function LoadLibrary(lpLibFileName: PChar): HMODULE; overload;
 /// BPL loading functions
 function LoadPackage(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
     TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
-function LoadPackage(const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
-    TValidatePackageProc = nil{$ENDIF}): TLibHandle; overload;
 
 {$ELSE}
 // DLL loading functions. They only forward the calls to the TMlLibraryManager instance
@@ -99,13 +97,6 @@ function LoadPackage(aStream: TStream; const aLibFileName: String {$IFDEF DELPHI
 begin
   Result := Manager.LoadPackageMl(aStream, aLibFileName, {$IFDEF DELPHI2007} aValidatePackage {$ELSE} nil {$ENDIF});
 end;
-
-function LoadPackage(const aLibFileName: String {$IFDEF DELPHI2007}; aValidatePackage:
-    TValidatePackageProc = nil{$ENDIF}): TLibHandle;
-begin
-  Result := Manager.LoadPackageMl(aLibFileName, {$IFDEF DELPHI2007} aValidatePackage {$ELSE} nil {$ENDIF});
-end;
-
 
 {$ELSE}
 { ============ Unhooked DLL Library memory functions ============ }
