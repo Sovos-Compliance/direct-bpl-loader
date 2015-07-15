@@ -97,7 +97,7 @@ type
     function LoadResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): HGLOBAL; override;
     function SizeOfResourceMl(aHandle: TLibHandle; hResInfo: HRSRC): DWORD; override;
     function GetModuleFileNameMl(aHandle: TLibHandle): String; override;
-    function GetModuleHandleMl(const aModuleName: String): TLibHandle; override;
+    function GetModuleHandleMl(aModuleName: PChar): TLibHandle; reintroduce;
     function LoadPackageMl(const aLibFileName: String; aValidatePackage: TValidatePackageProc): TLibHandle; reintroduce;
         overload;
     function LoadPackageMl(aStream: TStream; const aLibFileName: String; aValidatePackage: TValidatePackageProc):
@@ -627,9 +627,12 @@ begin
     Result := inherited GetModuleFileNameMl(aHandle);
 end;
 
-function TMlHookedLibraryManager.GetModuleHandleMl(const aModuleName: String): TLibHandle;
+function TMlHookedLibraryManager.GetModuleHandleMl(aModuleName: PChar): TLibHandle;
 begin
-  Result := fGetModuleHandleOrig(PChar(aModuleName));
+  // VG 150715: The param was changed to PChar because sometimes the API is called with a NULL value
+  // This is supposed to return the current process handle, but if the param is String the NULL is silently
+  // converted to an empty string, which is passed to GetmoModuleHandle and returns 0 instead of the process handle
+  Result := fGetModuleHandleOrig(aModuleName);
   if Result = 0 then
     Result := inherited GetModuleHandleMl(aModuleName);
 end;
